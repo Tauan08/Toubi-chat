@@ -4,11 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Toubi</title>
+</head>
+<body>
 <style>
 :root{--bg:#0f1115;--bg2:#171a21;--bg3:#20242e;--border:#2a2f3a;--txt:#e8eaed;--muted:#9aa0aa;--accent:#10a37f;--danger:#e05555}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;overflow:hidden}
+body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;overflow:hidden;text-align:left}
 button{font:inherit}
 .app{display:flex;height:100dvh;overflow:hidden}
 .sidebar{width:264px;flex:0 0 264px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px;gap:8px}
@@ -102,29 +104,27 @@ button{font:inherit}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 @media (max-width:760px){
   #toggleSidebar{display:grid}
-  .sidebar{position:fixed;inset:0 auto 0 0;z-index:40;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 30px rgba(0,0,0,.6)}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:40;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 30px rgba(0,0,0,.6)}
   .sidebar.open{transform:none}
   .messages{padding-top:14px}
   .welcome{margin-top:4vh}
   .welcome h1{font-size:24px}
 }
 </style>
-</head>
-<body>
 <div class="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">Toubi<span>.</span><small>aprendendo junto com você</small></div>
-    <button class="newchat" id="newChat">＋ Novo chat</button>
+    <button class="newchat" id="newChatBtn" type="button">＋ Novo chat</button>
     <div class="chat-list" id="chatList"></div>
     <div class="side-foot">
-      <button class="side-btn" id="btnMemory">🧠 Memória (<span id="memCount">0</span>)</button>
-      <button class="side-btn" id="btnSettings">⚙️ Configurações</button>
-      <button class="side-btn" id="btnBackup">💾 Backup / Restaurar</button>
+      <button class="side-btn" id="btnMemory" type="button">🧠 Memória (<span id="memCount">0</span>)</button>
+      <button class="side-btn" id="btnSettings" type="button">⚙️ Configurações</button>
+      <button class="side-btn" id="btnBackup" type="button">💾 Backup / Restaurar</button>
     </div>
   </aside>
   <main class="main">
     <header class="topbar">
-      <button class="icon-btn" id="toggleSidebar" title="Menu">☰</button>
+      <button class="icon-btn" id="toggleSidebar" type="button" title="Menu">☰</button>
       <div class="title" id="chatTitle">Novo chat</div>
       <span class="pill" id="statusPill">local</span>
     </header>
@@ -132,8 +132,8 @@ button{font:inherit}
     <div class="composer-wrap">
       <div class="composer">
         <textarea id="input" rows="1" placeholder="Fale com a Toubi… (Enter envia, Shift+Enter quebra linha)"></textarea>
-        <button class="icon-btn" id="micBtn" title="Falar">🎤</button>
-        <button class="send" id="sendBtn" title="Enviar">➤</button>
+        <button class="icon-btn" id="micBtn" type="button" title="Falar">🎤</button>
+        <button class="send" id="sendBtn" type="button" title="Enviar">➤</button>
       </div>
       <div class="hint">Ensine assim: <code>aprenda: pergunta | resposta</code></div>
     </div>
@@ -143,201 +143,206 @@ button{font:inherit}
   <div class="modal-card">
     <div class="modal-head">
       <h3 id="modalTitle">Título</h3>
-      <button class="mini" id="modalClose">✕</button>
+      <button class="mini" id="modalClose" type="button">✕</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
-<input type="file" id="fileInput" accept=".json" style="display:none">
+<input type="file" id="fileInput" accept=".json,application/json" style="display:none">
 <script>
 (function(){
 'use strict';
 
 /* ================= UTILS ================= */
-const $  = (s, el = document) => el.querySelector(s);
-const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
-const now = () => Date.now();
-const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
+function $(s, el){ return (el || document).querySelector(s); }
+function $all(s, el){ return Array.prototype.slice.call((el || document).querySelectorAll(s)); }
+function uid(){
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+function now(){ return Date.now(); }
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
 function toast(msg, ms){
-  ms = ms || 2200;
-  const t = $('#toast');
+  var t = $('#toast');
   if (!t) return;
-  t.textContent = msg;
+  t.textContent = String(msg);
   t.classList.add('show');
   clearTimeout(t._t);
-  t._t = setTimeout(function(){ t.classList.remove('show'); }, ms);
+  t._t = setTimeout(function(){ t.classList.remove('show'); }, ms || 2200);
 }
-
-window.addEventListener('error', function(e){
-  console.error('[Toubi] erro:', e.error || e.message);
-  toast('Erro: ' + (e.message || 'algo falhou'));
-});
-
 function download(filename, obj){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
+  var blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+  var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1500);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
 
 /* ================= TEXT ================= */
-const STOP = new Set('a o e de da do das dos que em um uma para com nao sim se os as por no na ao mais como mas foi ser tem eu voce vc ele ela isso esse essa este esta me te lhe ja so ou the and is to of a an it my sua seu minhas meus pelo pela'.split(' '));
+var STOP = {};
+'a o e de da do das dos que em um uma para com nao sim se os as por no na ao mais como mas foi ser tem eu voce vc ele ela isso esse essa este esta me te lhe ja so ou the and is to of a an it my sua seu minhas meus pelo pela'.split(' ').forEach(function(w){ STOP[w] = true; });
 
 function normalize(s){
-  return String(s).toLowerCase()
+  return String(s || '').toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ').trim();
 }
 function tokens(s){
-  return normalize(s).split(' ').filter(function(w){ return w.length > 1 && !STOP.has(w); });
+  return normalize(s).split(' ').filter(function(w){ return w.length > 1 && !STOP[w]; });
 }
 
 /* ================= STATE ================= */
-const K = { chats:'toubi.chats.v1', mem:'toubi.mem.v1', cfg:'toubi.cfg.v1', active:'toubi.active.v1' };
-function loadJSON(k, fb){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
+var K = { chats:'toubi.chats.v1', mem:'toubi.mem.v1', cfg:'toubi.cfg.v1', active:'toubi.active.v1' };
+function loadJSON(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
 function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ toast('Erro ao salvar: ' + e.message); } }
 
-const DEFAULT_PERSONALITY =
+var DEFAULT_PERSONALITY =
 'Você é a Toubi, uma IA pessoal criada pelo Tauan, rodando direto no navegador dele.\n' +
 'Fale português do Brasil, de forma direta, calorosa e sem enrolação.\n' +
 'Você é curiosa, gosta de aprender junto e admite quando não sabe.\n' +
 'Quando não tiver certeza, diga o que sabe e o que falta.\n' +
 'Você aprende com cada conversa e guarda o conhecimento de forma permanente.';
 
-const state = {
+var state = {
   chats: loadJSON(K.chats, []),
   memory: loadJSON(K.mem, []),
   config: Object.assign({
     apiKey:'', baseUrl:'https://api.openai.com/v1', model:'gpt-4o-mini',
     threshold:0.42, personality: DEFAULT_PERSONALITY
   }, loadJSON(K.cfg, {})),
-  activeId: loadJSON(K.active, null)
+  activeId: loadJSON(K.active, null),
+  sending: false
 };
 
 function persist(){
   saveJSON(K.chats, state.chats);
   saveJSON(K.mem, state.memory);
   saveJSON(K.cfg, state.config);
-  saveJSON(K.active, state.activeId);
+  try { localStorage.setItem(K.active, JSON.stringify(state.activeId)); } catch(e){}
 }
 
 /* ================= MEMORY ================= */
 function addMemory(q, a, source){
-  q = String(q).trim(); a = String(a).trim();
+  q = String(q || '').trim(); a = String(a || '').trim();
   if (!q || !a) return null;
-  const qn = normalize(q);
-  const existing = state.memory.find(function(m){ return normalize(m.q) === qn; });
-  if (existing){
-    existing.a = a; existing.ts = now();
-    existing.hits = (existing.hits || 0) + 1;
-    persist(); updateMemCount();
-    return existing;
+  var qn = normalize(q);
+  var found = null;
+  for (var i = 0; i < state.memory.length; i++){
+    if (normalize(state.memory[i].q) === qn){ found = state.memory[i]; break; }
   }
-  const item = {id: uid(), q:q, a:a, ts: now(), hits:0, source: source || 'manual'};
+  if (found){
+    found.a = a; found.ts = now();
+    found.hits = (found.hits || 0) + 1;
+    persist(); updateMemCount();
+    return found;
+  }
+  var item = {id: uid(), q:q, a:a, ts: now(), hits:0, source: source || 'manual'};
   state.memory.push(item);
-  if (state.memory.length > 5000) state.memory.shift();
+  if (state.memory.length > 5000) state.memory.splice(0, state.memory.length - 5000);
   persist(); updateMemCount();
   return item;
 }
-
 function bumpHit(id){
-  const m = state.memory.find(function(x){ return x.id === id; });
-  if (m){ m.hits = (m.hits || 0) + 1; persist(); }
+  for (var i = 0; i < state.memory.length; i++){
+    if (state.memory[i].id === id){ state.memory[i].hits = (state.memory[i].hits || 0) + 1; persist(); break; }
+  }
 }
-
 function scoreAgainst(qToks, qNorm, m){
-  const mToks = tokens(m.q);
-  if (!mToks.length) return 0;
-  const setA = new Set(qToks), setB = new Set(mToks);
-  let inter = 0;
-  setA.forEach(function(t){ if (setB.has(t)) inter++; });
-  let s = inter / Math.sqrt(setA.size * setB.size);
-  let pref = 0;
-  setA.forEach(function(t){
-    if (t.length >= 4){
-      let hit = false;
-      setB.forEach(function(w){ if (!hit && w.indexOf(t) === 0) hit = true; });
-      if (hit) pref++;
+  var mToks = tokens(m.q);
+  if (!mToks.length || !qToks.length) return 0;
+  var setA = {}, setB = {}, i;
+  for (i = 0; i < qToks.length; i++) setA[qToks[i]] = true;
+  for (i = 0; i < mToks.length; i++) setB[mToks[i]] = true;
+  var inter = 0, sizeA = 0, key;
+  for (key in setA){ sizeA++; if (setB[key]) inter++; }
+  var sizeB = 0;
+  for (key in setB) sizeB++;
+  if (!sizeA || !sizeB) return 0;
+  var s = inter / Math.sqrt(sizeA * sizeB);
+  var pref = 0;
+  for (key in setA){
+    if (key.length >= 4){
+      for (var w in setB){ if (w.indexOf(key) === 0){ pref++; break; } }
     }
-  });
-  s += 0.12 * (pref / setA.size);
-  const mNorm = normalize(m.q);
+  }
+  s += 0.12 * (pref / sizeA);
+  var mNorm = normalize(m.q);
   if (mNorm === qNorm) s = 1;
-  else if (mNorm.length > 8 && (qNorm.indexOf(mNorm) > -1 || mNorm.indexOf(qNorm) > -1))
-    s = Math.max(s, 0.85);
+  else if (mNorm.length > 8 && (qNorm.indexOf(mNorm) > -1 || mNorm.indexOf(qNorm) > -1)) s = Math.max(s, 0.85);
   s += Math.min(0.05, (m.hits || 0) * 0.004);
   return Math.min(s, 1);
 }
-
 function searchMemory(query){
-  const qNorm = normalize(query);
-  const qToks = tokens(query);
+  var qNorm = normalize(query);
+  var qToks = tokens(query);
   if (!qToks.length) return null;
-  let best = null;
-  for (let i=0; i<state.memory.length; i++){
-    const m = state.memory[i];
-    const s = scoreAgainst(qToks, qNorm, m);
+  var best = null;
+  for (var i = 0; i < state.memory.length; i++){
+    var m = state.memory[i];
+    var s = scoreAgainst(qToks, qNorm, m);
     if (!best || s > best.score) best = {score:s, id:m.id, q:m.q, a:m.a};
   }
   return (best && best.score >= 0.2) ? best : null;
 }
-
 function topMemories(query, k){
   k = k || 5;
-  const qNorm = normalize(query);
-  const qToks = tokens(query);
+  var qNorm = normalize(query);
+  var qToks = tokens(query);
   if (!qToks.length) return [];
-  return state.memory
-    .map(function(m){ return {m:m, s: scoreAgainst(qToks, qNorm, m)}; })
-    .filter(function(x){ return x.s >= 0.2; })
-    .sort(function(a,b){ return b.s - a.s; })
-    .slice(0, k)
-    .map(function(x){ return x.m; });
+  var arr = [];
+  for (var i = 0; i < state.memory.length; i++){
+    var s = scoreAgainst(qToks, qNorm, state.memory[i]);
+    if (s >= 0.2) arr.push({m: state.memory[i], s: s});
+  }
+  arr.sort(function(a,b){ return b.s - a.s; });
+  return arr.slice(0, k).map(function(x){ return x.m; });
 }
-
 function updateMemCount(){
-  const el = $('#memCount');
-  if (el) el.textContent = state.memory.length;
+  var el = $('#memCount');
+  if (el) el.textContent = String(state.memory.length);
 }
 
 /* ================= SEEDS ================= */
 function seedIfEmpty(){
   if (state.memory.length) return;
-  const seeds = [
-    ['oi', 'Oi! Eu sou a Toubi 👋 Ainda estou aprendendo, mas guardo tudo que você me ensina — mesmo sem internet.'],
+  var seeds = [
+    ['oi', 'Oi! Eu sou a Toubi. Ainda estou aprendendo, mas guardo tudo que você me ensina — mesmo sem internet.'],
     ['olá', 'Olá! Pode falar comigo normalmente. Se eu não souber algo, me ensina que eu guardo.'],
-    ['bom dia', 'Bom dia! ☀️ Pronto pra aprender alguma coisa nova hoje?'],
-    ['boa noite', 'Boa noite! 🌙 Tô aqui se precisar.'],
+    ['bom dia', 'Bom dia! Pronto pra aprender alguma coisa nova hoje?'],
+    ['boa noite', 'Boa noite! Tô aqui se precisar.'],
     ['quem é você', 'Eu sou a Toubi, sua IA local. Rodo no seu navegador, aprendo com você e guardo o conhecimento aqui no seu computador.'],
     ['tudo bem', 'Tudo certo por aqui! E com você?'],
-    ['obrigado', 'De nada! 🙂'],
-    ['obrigada', 'De nada! 🙂'],
-    ['ajuda', 'Você pode:\n• Conversar comigo normalmente\n• Me ensinar: aprenda: pergunta | resposta\n• Usar o microfone 🎤 pra falar\n• Colocar uma API key em ⚙️ Configurações pra eu aprender mais rápido\n• Baixar tudo que aprendi em 💾 Backup']
+    ['obrigado', 'De nada!'],
+    ['obrigada', 'De nada!'],
+    ['ajuda', 'Você pode:\n- Conversar comigo normalmente\n- Me ensinar: aprenda: pergunta | resposta\n- Usar o microfone pra falar\n- Colocar uma API key em Configurações pra eu responder sozinha\n- Baixar tudo que aprendi em Backup']
   ];
-  for (let i=0; i<seeds.length; i++) addMemory(seeds[i][0], seeds[i][1], 'seed');
+  for (var i = 0; i < seeds.length; i++){
+    state.memory.push({id: uid(), q: seeds[i][0], a: seeds[i][1], ts: now(), hits: 0, source: 'seed'});
+  }
+  persist(); updateMemCount();
 }
 
 /* ================= BUILTIN ================= */
 function builtinAnswer(text){
-  const t = normalize(text);
+  var t = normalize(text);
   if (/^(que horas|horas agora|hora agora|que hora)/.test(t))
     return 'Agora são ' + new Date().toLocaleTimeString('pt-BR') + '.';
-  if (/^(que dia|data de hoje|hoje e que dia|qual a data)/.test(t))
+  if (/^(que dia|data de hoje|hoje e que dia|qual a data|que dia e hoje)/.test(t))
     return 'Hoje é ' + new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) + '.';
-  const raw = text.trim();
+  var raw = String(text || '').trim();
   if (/\d/.test(raw) && /^[\d\s+\-*/().,%^]+$/.test(raw)){
     try {
-      const expr = raw.replace(/\^/g, '**').replace(/,/g, '.');
+      var expr = raw.replace(/\^/g, '**').replace(/,/g, '.');
       if (/^[\d\s+\-*/().*]+$/.test(expr)){
-        const val = Function('"use strict";return (' + expr + ')')();
+        var val = Function('"use strict";return (' + expr + ')')();
         if (typeof val === 'number' && isFinite(val))
           return raw + ' = ' + Number(val.toFixed(10));
       }
@@ -348,13 +353,13 @@ function builtinAnswer(text){
 
 /* ================= TEACH ================= */
 function parseTeach(text){
-  const m = text.match(/^\s*(?:aprenda|aprender|ensine|ensina|lembre|memorize|guarde)\b[:\s]+([\s\S]+)$/i);
+  var m = String(text || '').match(/^\s*(?:aprenda|aprender|ensine|ensina|lembre|memorize|guarde|aprende)\b[:\s]+([\s\S]+)$/i);
   if (!m) return null;
-  const rest = m[1].trim();
-  let parts = rest.split(/\s*(?:=>|\||->)\s*/);
+  var rest = m[1].trim();
+  var parts = rest.split(/\s*(?:=>|\||->)\s*/);
   if (parts.length < 2){
-    const i = rest.indexOf(' = ');
-    if (i > -1) parts = [rest.slice(0, i), rest.slice(i + 3)];
+    var idx = rest.indexOf(' = ');
+    if (idx > -1) parts = [rest.slice(0, idx), rest.slice(idx + 3)];
   }
   if (parts.length < 2 || !parts[0].trim() || !parts[1].trim()) return {needFormat:true};
   return {q: parts[0].trim(), a: parts.slice(1).join(' | ').trim()};
@@ -362,35 +367,37 @@ function parseTeach(text){
 
 /* ================= API ================= */
 function apiReady(){ return !!(state.config.apiKey && state.config.baseUrl && state.config.model); }
-
 function buildSystemPrompt(memories){
-  let s = state.config.personality || DEFAULT_PERSONALITY;
-  if (memories.length){
+  var s = state.config.personality || DEFAULT_PERSONALITY;
+  if (memories && memories.length){
     s += '\n\nConhecimento que você já aprendeu com este usuário (use quando for relevante):\n' +
          memories.map(function(m, i){ return (i+1) + '. P: ' + m.q + '\n   R: ' + m.a; }).join('\n');
   }
   return s;
 }
-
-async function callAPI(history, memories){
-  const url = state.config.baseUrl.replace(/\/+$/, '') + '/chat/completions';
-  const msgs = [{role:'system', content: buildSystemPrompt(memories)}]
-    .concat(history.slice(-20).map(function(m){ return {role:m.role, content:m.content}; }));
-  const res = await fetch(url, {
+function callAPI(history, memories){
+  var url = String(state.config.baseUrl || '').replace(/\/+$/, '') + '/chat/completions';
+  var msgs = [{role:'system', content: buildSystemPrompt(memories)}].concat(
+    history.slice(-20).map(function(m){ return {role:m.role, content:m.content}; })
+  );
+  return fetch(url, {
     method:'POST',
     headers: {'Content-Type':'application/json', 'Authorization':'Bearer ' + state.config.apiKey},
     body: JSON.stringify({model: state.config.model, temperature: 0.7, messages: msgs})
+  }).then(function(res){
+    if (!res.ok){
+      return res.text().then(function(t){
+        var detail = t.slice(0, 300);
+        try { var j = JSON.parse(t); if (j.error && j.error.message) detail = j.error.message; } catch(e){}
+        throw new Error(detail || (res.status + ' ' + res.statusText));
+      });
+    }
+    return res.json();
+  }).then(function(data){
+    var out = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!out) throw new Error('Resposta vazia da API.');
+    return String(out).trim();
   });
-  if (!res.ok){
-    let detail = '';
-    try { const j = await res.json(); detail = (j.error && j.error.message) || JSON.stringify(j).slice(0,200); }
-    catch(e){ detail = res.status + ' ' + res.statusText; }
-    throw new Error(detail);
-  }
-  const data = await res.json();
-  const out = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (!out) throw new Error('Resposta vazia da API.');
-  return out.trim();
 }
 
 /* ================= CHATS ================= */
@@ -398,7 +405,8 @@ function newChatObj(){
   return {id: uid(), title:'Novo chat', createdAt: now(), updatedAt: now(), messages: []};
 }
 function activeChat(){
-  let c = state.chats.find(function(x){ return x.id === state.activeId; });
+  var c = null, i;
+  for (i = 0; i < state.chats.length; i++){ if (state.chats[i].id === state.activeId){ c = state.chats[i]; break; } }
   if (!c){
     c = state.chats[0];
     if (!c){ c = newChatObj(); state.chats.push(c); persist(); }
@@ -407,27 +415,30 @@ function activeChat(){
   return c;
 }
 function createChat(){
-  const c = newChatObj();
+  var c = newChatObj();
   state.chats.unshift(c);
   state.activeId = c.id;
   persist();
   renderAll();
-  const inp = $('#input'); if (inp) inp.focus();
+  var inp = $('#input'); if (inp) inp.focus();
+  closeSidebarMobile();
 }
 function deleteChat(id){
-  const c = state.chats.find(function(x){ return x.id === id; });
+  var c = null, i;
+  for (i = 0; i < state.chats.length; i++){ if (state.chats[i].id === id) c = state.chats[i]; }
   if (!c) return;
-  if (c.messages.length && !confirm('Excluir o chat "' + c.title + '"? Isso não volta.')) return;
+  if (c.messages.length && !window.confirm('Excluir o chat "' + c.title + '"? Isso não volta.')) return;
   state.chats = state.chats.filter(function(x){ return x.id !== id; });
   if (state.activeId === id) state.activeId = state.chats[0] ? state.chats[0].id : null;
   persist(); renderAll();
 }
 function renameChat(id){
-  const c = state.chats.find(function(x){ return x.id === id; });
+  var c = null;
+  for (var i = 0; i < state.chats.length; i++){ if (state.chats[i].id === id) c = state.chats[i]; }
   if (!c) return;
-  const n = prompt('Novo nome do chat:', c.title);
+  var n = window.prompt('Novo nome do chat:', c.title);
   if (n === null) return;
-  const t = n.trim();
+  var t = String(n).trim();
   if (!t) return;
   c.title = t.slice(0, 60);
   persist(); renderAll();
@@ -435,34 +446,432 @@ function renameChat(id){
 
 /* ================= RENDER ================= */
 function renderChatList(){
-  const el = $('#chatList');
+  var el = $('#chatList');
   if (!el) return;
   el.innerHTML = '';
-  const ordered = state.chats.slice().sort(function(a,b){ return (b.updatedAt || 0) - (a.updatedAt || 0); });
-  for (let i=0; i<ordered.length; i++){
-    const c = ordered[i];
-    const d = document.createElement('div');
-    d.className = 'chat-item' + (c.id === state.activeId ? ' active' : '');
-    d.innerHTML =
-      '<span class="name">' + esc(c.title || 'Novo chat') + '</span>' +
-      '<span class="acts">' +
-        '<button class="mini" data-act="rename" title="Renomear">✏️</button>' +
-        '<button class="mini" data-act="delete" title="Excluir">🗑</button>' +
-      '</span>';
-    (function(id){
-      d.addEventListener('click', function(e){
-        const act = e.target && e.target.dataset && e.target.dataset.act;
-        if (act === 'rename'){ e.stopPropagation(); renameChat(id); return; }
-        if (act === 'delete'){ e.stopPropagation(); deleteChat(id); return; }
-        state.activeId = id; persist(); renderAll();
+  var ordered = state.chats.slice().sort(function(a,b){ return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  for (var i = 0; i < ordered.length; i++){
+    (function(c){
+      var d = document.createElement('div');
+      d.className = 'chat-item' + (c.id === state.activeId ? ' active' : '');
+      var name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = c.title || 'Novo chat';
+      var acts = document.createElement('span');
+      acts.className = 'acts';
+      var bR = document.createElement('button');
+      bR.className = 'mini'; bR.type = 'button'; bR.title = 'Renomear'; bR.textContent = '✏️';
+      bR.addEventListener('click', function(e){ e.stopPropagation(); renameChat(c.id); });
+      var bD = document.createElement('button');
+      bD.className = 'mini'; bD.type = 'button'; bD.title = 'Excluir'; bD.textContent = '🗑';
+      bD.addEventListener('click', function(e){ e.stopPropagation(); deleteChat(c.id); });
+      acts.appendChild(bR); acts.appendChild(bD);
+      d.appendChild(name); d.appendChild(acts);
+      d.addEventListener('click', function(){
+        state.activeId = c.id; persist(); renderAll();
         closeSidebarMobile();
       });
-    })(c.id);
-    el.appendChild(d);
+      el.appendChild(d);
+    })(ordered[i]);
   }
 }
 
 function renderMarkdown(text){
-  const blocks = [];
-  let s = esc(text);
-  s = s.replace(/
+  var raw = String(text == null ? '' : text);
+  var blocks = [];
+  var withPlaceholders = raw.replace(/```([\s\S]*?)```/g, function(m, code){
+    var clean = String(code || '').replace(/^\n/, '').replace(/\n$/, '');
+    blocks.push('<pre><code>' + esc(clean) + '</code></pre>');
+    return '\u0000' + (blocks.length - 1) + '\u0000';
+  });
+  var s = esc(withPlaceholders);
+  s = s.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\n/g, '<br>');
+  s = s.replace(/\u0000(\d+)\u0000/g, function(m, idx){ return blocks[Number(idx)] || ''; });
+  return s;
+}
+
+function scrollBottom(){
+  var box = $('#messages');
+  if (box) box.scrollTop = box.scrollHeight;
+}
+
+function renderMessages(){
+  var box = $('#messages');
+  if (!box) return;
+  box.innerHTML = '';
+  var chat = activeChat();
+  var titleEl = $('#chatTitle');
+  if (titleEl) titleEl.textContent = chat.title || 'Novo chat';
+  if (!chat.messages.length){
+    var w = document.createElement('div');
+    w.className = 'welcome';
+    w.innerHTML = '<h1>Oi, eu sou a Toubi.</h1>' +
+      '<p>Aprendo com você e guardo tudo aqui no navegador.<br>Me ensine com <code>aprenda: pergunta | resposta</code></p>';
+    var chips = document.createElement('div');
+    chips.className = 'chips';
+    var sug = ['Quem é você?', 'Que horas são?', 'O que você sabe fazer?', 'aprenda: meu nome é | Tauan'];
+    sug.forEach(function(q){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = q;
+      b.addEventListener('click', function(){ sendText(q); });
+      chips.appendChild(b);
+    });
+    w.appendChild(chips);
+    box.appendChild(w);
+    return;
+  }
+  for (var i = 0; i < chat.messages.length; i++){
+    (function(m){
+      var row = document.createElement('div');
+      row.className = 'msg ' + (m.role === 'user' ? 'user' : 'assistant');
+      var av = document.createElement('div');
+      av.className = 'avatar';
+      av.textContent = m.role === 'user' ? 'EU' : 'T';
+      var bub = document.createElement('div');
+      bub.className = 'bubble';
+      bub.innerHTML = renderMarkdown(m.content);
+      row.appendChild(av); row.appendChild(bub);
+      box.appendChild(row);
+    })(chat.messages[i]);
+  }
+  scrollBottom();
+}
+
+function updateStatus(){
+  var pill = $('#statusPill');
+  if (!pill) return;
+  if (apiReady()){ pill.textContent = 'api + local'; pill.classList.add('on'); }
+  else { pill.textContent = 'local'; pill.classList.remove('on'); }
+}
+
+function renderAll(){
+  renderChatList();
+  renderMessages();
+  updateMemCount();
+  updateStatus();
+}
+
+/* ================= TYPING ================= */
+var typingEl = null;
+function showTyping(){
+  hideTyping();
+  var box = $('#messages');
+  if (!box) return;
+  var w = box.querySelector('.welcome');
+  if (w) w.remove();
+  typingEl = document.createElement('div');
+  typingEl.className = 'msg assistant';
+  typingEl.innerHTML = '<div class="avatar">T</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>';
+  box.appendChild(typingEl);
+  scrollBottom();
+}
+function hideTyping(){
+  if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+  typingEl = null;
+}
+
+/* ================= SEND ================= */
+function sendText(raw){
+  var text = String(raw == null ? '' : raw).trim();
+  if (!text || state.sending) return;
+  var input = $('#input');
+  var chat = activeChat();
+  chat.messages.push({role:'user', content: text, ts: now()});
+  if (!chat.title || chat.title === 'Novo chat'){
+    chat.title = text.slice(0, 42);
+  }
+  chat.updatedAt = now();
+  persist(); renderAll();
+  if (input){ input.value = ''; autoResize(); }
+  state.sending = true;
+  updateSendBtn();
+  showTyping();
+  handleReply(chat, text).then(function(reply){
+    hideTyping();
+    chat.messages.push({role:'assistant', content: reply, ts: now()});
+    chat.updatedAt = now();
+    persist();
+    state.sending = false;
+    updateSendBtn();
+    renderAll();
+    if (input) input.focus();
+  }).catch(function(err){
+    hideTyping();
+    state.sending = false;
+    updateSendBtn();
+    chat.messages.push({role:'assistant', content: 'Erro: ' + (err && err.message ? err.message : err), ts: now()});
+    persist(); renderAll();
+  });
+}
+
+function handleReply(chat, text){
+  var teach = parseTeach(text);
+  if (teach){
+    if (teach.needFormat){
+      return Promise.resolve('Para me ensinar, use o formato:\n`aprenda: pergunta | resposta`\n\nExemplo:\n`aprenda: qual meu jogo favorito? | Minecraft`');
+    }
+    addMemory(teach.q, teach.a, 'manual');
+    return Promise.resolve('Aprendi! ✅\nQuando perguntarem "' + teach.q + '", vou responder:\n"' + teach.a + '"');
+  }
+  var b = builtinAnswer(text);
+  if (b) return Promise.resolve(b);
+  var best = searchMemory(text);
+  var thr = Number(state.config.threshold);
+  if (!(thr >= 0 && thr <= 1)) thr = 0.42;
+  if (best && best.score >= thr){
+    bumpHit(best.id);
+    return Promise.resolve(best.a);
+  }
+  if (apiReady()){
+    var mems = topMemories(text, 5);
+    var hist = chat.messages.slice(-20);
+    return callAPI(hist, mems).catch(function(err){
+      var msg = 'Erro na API: ' + err.message;
+      if (best) msg += '\n\nMas achei na memória local (' + Math.round(best.score * 100) + '%):\n' + best.a;
+      return msg;
+    });
+  }
+  if (best){
+    bumpHit(best.id);
+    return Promise.resolve(best.a + '\n\n(confiança ' + Math.round(best.score * 100) + '% — se estiver errado, me corrija com "aprenda: ...")');
+  }
+  return Promise.resolve('Ainda não sei responder isso. 🤔\nMe ensina? Digite:\n`aprenda: ' + text + ' | sua resposta aqui`\n\nOu coloque uma API key em Configurações pra eu responder sozinha.');
+}
+
+function updateSendBtn(){
+  var btn = $('#sendBtn');
+  if (btn) btn.disabled = state.sending;
+}
+
+/* ================= MODAL ================= */
+function openModal(title, node){
+  var m = $('#modal');
+  $('#modalTitle').textContent = title;
+  var body = $('#modalBody');
+  body.innerHTML = '';
+  if (typeof node === 'string') body.innerHTML = node;
+  else if (node) body.appendChild(node);
+  m.classList.remove('hidden');
+}
+function closeModal(){
+  $('#modal').classList.add('hidden');
+}
+
+function openSettings(){
+  var wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="field"><label>Base URL (OpenAI-compatível)</label><input type="text" id="fBase" value="' + esc(state.config.baseUrl) + '"><small>Ex: https://api.openai.com/v1 — funciona com OpenAI, Groq, OpenRouter, LM Studio local, etc.</small></div>' +
+    '<div class="field"><label>API Key (opcional — sem ela eu rodo 100% local)</label><input type="password" id="fKey" value="' + esc(state.config.apiKey) + '" placeholder="sk-..."><small>Fica salva só no seu navegador.</small></div>' +
+    '<div class="field"><label>Modelo</label><input type="text" id="fModel" value="' + esc(state.config.model) + '"></div>' +
+    '<div class="field"><label>Limiar de confiança da memória: <span id="thrVal">' + esc(String(state.config.threshold)) + '</span></label><input type="range" id="fThr" min="0.2" max="0.9" step="0.01" value="' + esc(String(state.config.threshold)) + '"><small>Quanto maior, mais exigente eu sou pra usar a memória. Padrão 0.42.</small></div>' +
+    '<div class="field"><label>Personalidade</label><textarea id="fPers">' + esc(state.config.personality) + '</textarea></div>' +
+    '<div class="row"><button class="btn" id="saveCfg" type="button">Salvar</button><button class="btn ghost" id="cancelCfg" type="button">Fechar</button></div>';
+  openModal('Configurações', wrap);
+  $('#fThr').addEventListener('input', function(e){ $('#thrVal').textContent = e.target.value; });
+  $('#saveCfg').addEventListener('click', function(){
+    state.config.baseUrl = $('#fBase').value.trim() || 'https://api.openai.com/v1';
+    state.config.apiKey = $('#fKey').value.trim();
+    state.config.model = $('#fModel').value.trim() || 'gpt-4o-mini';
+    state.config.threshold = parseFloat($('#fThr').value) || 0.42;
+    state.config.personality = $('#fPers').value;
+    persist(); updateStatus(); closeModal();
+    toast('Configurações salvas!');
+  });
+  $('#cancelCfg').addEventListener('click', closeModal);
+}
+
+function openMemory(){
+  var wrap = document.createElement('div');
+  var search = document.createElement('div');
+  search.className = 'field';
+  search.innerHTML = '<label>Buscar na memória</label><input type="text" id="memSearch" placeholder="digite pra filtrar...">';
+  var list = document.createElement('div');
+  list.id = 'memList';
+  var add = document.createElement('div');
+  add.innerHTML = '<div class="field"><label>Ensinar novo (pergunta | resposta)</label><input type="text" id="memQ" placeholder="pergunta"><div style="height:6px"></div><input type="text" id="memA" placeholder="resposta"><div class="row"><button class="btn" id="memAdd" type="button">Adicionar</button></div></div>';
+  wrap.appendChild(search); wrap.appendChild(list); wrap.appendChild(add);
+  openModal('Memória (' + state.memory.length + ')', wrap);
+
+  function draw(filter){
+    list.innerHTML = '';
+    var f = normalize(filter || '');
+    var items = state.memory.slice().reverse();
+    var shown = 0;
+    for (var i = 0; i < items.length && shown < 200; i++){
+      (function(m){
+        if (f && normalize(m.q).indexOf(f) === -1 && normalize(m.a).indexOf(f) === -1) return;
+        shown++;
+        var d = document.createElement('div');
+        d.className = 'mem-item';
+        var head = document.createElement('div');
+        head.className = 'mem-head';
+        var q = document.createElement('div');
+        q.className = 'mem-q';
+        q.textContent = m.q + (m.hits ? '  •  ' + m.hits + ' usos' : '');
+        var del = document.createElement('button');
+        del.className = 'mini'; del.type = 'button'; del.textContent = '🗑'; del.title = 'Apagar';
+        del.addEventListener('click', function(){
+          if (!window.confirm('Apagar essa memória?')) return;
+          state.memory = state.memory.filter(function(x){ return x.id !== m.id; });
+          persist(); updateMemCount(); draw($('#memSearch').value);
+          toast('Memória apagada');
+        });
+        head.appendChild(q); head.appendChild(del);
+        var a = document.createElement('div');
+        a.className = 'mem-a';
+        a.textContent = m.a;
+        d.appendChild(head); d.appendChild(a);
+        list.appendChild(d);
+      })(items[i]);
+    }
+    if (!shown){
+      var p = document.createElement('p');
+      p.style.color = '#9aa0aa';
+      p.textContent = 'Nenhuma memória encontrada.';
+      list.appendChild(p);
+    }
+  }
+  draw('');
+  $('#memSearch').addEventListener('input', function(e){ draw(e.target.value); });
+  $('#memAdd').addEventListener('click', function(){
+    var q = $('#memQ').value, a = $('#memA').value;
+    if (!q.trim() || !a.trim()){ toast('Preencha pergunta e resposta'); return; }
+    addMemory(q, a, 'manual');
+    $('#memQ').value = ''; $('#memA').value = '';
+    $('#modalTitle').textContent = 'Memória (' + state.memory.length + ')';
+    draw($('#memSearch').value);
+    toast('Memória salva!');
+  });
+}
+
+function openBackup(){
+  var wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div class="field"><label>Exportar</label><div class="row">' +
+    '<button class="btn ghost" id="expAll" type="button">Baixar tudo</button>' +
+    '<button class="btn ghost" id="expMem" type="button">Só memória</button>' +
+    '<button class="btn ghost" id="expChats" type="button">Só chats</button></div></div>' +
+    '<div class="field"><label>Restaurar / perigo</label><div class="row">' +
+    '<button class="btn ghost" id="impBtn" type="button">Importar JSON</button>' +
+    '<button class="btn danger" id="wipeChats" type="button">Apagar chats</button>' +
+    '<button class="btn danger" id="wipeMem" type="button">Apagar memória</button></div>' +
+    '<small>Import aceita o arquivo do "Baixar tudo". Apagar não volta — faça backup antes.</small></div>';
+  openModal('Backup / Restaurar', wrap);
+  $('#expAll').addEventListener('click', function(){ download('toubi-backup.json', {chats: state.chats, memory: state.memory, config: state.config, exportedAt: now()}); });
+  $('#expMem').addEventListener('click', function(){ download('toubi-memoria.json', state.memory); });
+  $('#expChats').addEventListener('click', function(){ download('toubi-chats.json', state.chats); });
+  $('#wipeChats').addEventListener('click', function(){
+    if (!window.confirm('Apagar TODOS os chats?')) return;
+    state.chats = []; state.activeId = null; persist(); renderAll(); closeModal();
+  });
+  $('#wipeMem').addEventListener('click', function(){
+    if (!window.confirm('Apagar TODA a memória?')) return;
+    state.memory = []; persist(); updateMemCount(); closeModal();
+    toast('Memória apagada');
+  });
+  $('#impBtn').addEventListener('click', function(){ $('#fileInput').click(); });
+}
+
+/* ================= VOICE ================= */
+var rec = null, recording = false;
+function toggleMic(){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR){ toast('Microfone não suportado neste navegador'); return; }
+  var btn = $('#micBtn');
+  if (recording && rec){
+    try { rec.stop(); } catch(e){}
+    return;
+  }
+  rec = new SR();
+  rec.lang = 'pt-BR';
+  rec.interimResults = false;
+  rec.onstart = function(){ recording = true; if (btn) btn.classList.add('rec'); };
+  rec.onend = function(){ recording = false; if (btn) btn.classList.remove('rec'); rec = null; };
+  rec.onerror = function(e){ recording = false; if (btn) btn.classList.remove('rec'); toast('Erro no microfone: ' + (e.error || 'falhou')); };
+  rec.onresult = function(e){
+    var txt = '';
+    for (var i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+    txt = txt.trim();
+    if (txt){
+      var inp = $('#input');
+      if (inp){ inp.value = (inp.value ? inp.value + ' ' : '') + txt; autoResize(); inp.focus(); }
+    }
+  };
+  try { rec.start(); } catch(e){ toast('Não consegui abrir o microfone'); }
+}
+
+/* ================= MISC UI ================= */
+function closeSidebarMobile(){
+  var sb = $('#sidebar');
+  if (sb && window.innerWidth <= 760) sb.classList.remove('open');
+}
+function autoResize(){
+  var inp = $('#input');
+  if (!inp) return;
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 180) + 'px';
+}
+
+/* ================= INIT ================= */
+function init(){
+  seedIfEmpty();
+  renderAll();
+
+  $('#newChatBtn').addEventListener('click', createChat);
+  $('#sendBtn').addEventListener('click', function(){ sendText($('#input').value); });
+
+  var inp = $('#input');
+  inp.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendText(inp.value); }
+  });
+  inp.addEventListener('input', autoResize);
+  autoResize();
+
+  $('#micBtn').addEventListener('click', toggleMic);
+  $('#btnMemory').addEventListener('click', openMemory);
+  $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnBackup').addEventListener('click', openBackup);
+  $('#modalClose').addEventListener('click', closeModal);
+  $('#modal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
+
+  var tg = $('#toggleSidebar');
+  if (tg) tg.addEventListener('click', function(){ $('#sidebar').classList.toggle('open'); });
+
+  $('#fileInput').addEventListener('change', function(e){
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function(){
+      try {
+        var data = JSON.parse(r.result);
+        if (data && data.chats && data.memory){
+          state.chats = data.chats; state.memory = data.memory;
+          if (data.config) state.config = Object.assign(state.config, data.config);
+          state.activeId = state.chats[0] ? state.chats[0].id : null;
+        } else if (Array.isArray(data)){
+          state.memory = data;
+        } else { toast('Arquivo inválido'); return; }
+        persist(); renderAll(); closeModal();
+        toast('Backup restaurado!');
+      } catch(err){ toast('Erro ao importar: ' + err.message); }
+      e.target.value = '';
+    };
+    r.readAsText(f);
+  });
+
+  updateSendBtn();
+  if (inp) inp.focus();
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+
+})();
+</script>
+
+</body>
+</html>
