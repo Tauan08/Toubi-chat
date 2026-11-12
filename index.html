@@ -727,17 +727,27 @@ async function ensureLocalModel(){
   try{
     setModelStatus("Carregando biblioteca neural...");
     var mod = await import("https://esm.sh/@huggingface/transformers@3");
-    var wg = !!navigator.gpu;
-    setModelStatus(wg? "Baixando modelo (300 a 500 MB, uma vez só). Depois fica salvo no navegador." : "Seu navegador não tem WebGPU, vou usar modo compatível (mais lento, mas funciona). Baixando modelo (uma vez só)...");
-    localPipe = await mod.pipeline("text-generation", LOCAL_MODEL_ID, {
-      dtype: wg? "q4f16" : "quantized",
-      device: wg? "webgpu" : "wasm",
-      progress_callback: function(p){
-        if(!p) return;
-        if(p.status==="progress" && p.total){ var f=p.loaded/p.total; setProg(f, "Baixando: "+Math.round(p.loaded/1048576)+" de "+Math.round(p.total/1048576)+" MB"); modeBadgeEl.textContent="🧩 baixando modelo "+Math.round(f*100)+"%"; }
-        else if(p.status==="done"){ setProg(1, "Download pronto, preparando..."); }
-      }
-    });
+    var modes = [];
+    if(navigator.gpu) modes.push({dtype:"q4f16", device:"webgpu", msg:"Baixando modelo (300 a 500 MB, uma vez só). Depois fica salvo no navegador."});
+    modes.push({dtype:"quantized", device:"wasm", msg:"Modo compatível (mais lento, mas funciona em qualquer PC). Baixando modelo (uma vez só)..."});
+    var lastErr=null;
+    for(var mi=0; mi<modes.length; mi++){
+      try{
+        setModelStatus(modes[mi].msg);
+        setProg(0,"");
+        localPipe = await mod.pipeline("text-generation", LOCAL_MODEL_ID, {
+          dtype: modes[mi].dtype,
+          device: modes[mi].device,
+          progress_callback: function(p){
+            if(!p) return;
+            if(p.status==="progress" && p.total){ var f=p.loaded/p.total; setProg(f, "Baixando: "+Math.round(p.loaded/1048576)+" de "+Math.round(p.total/1048576)+" MB"); modeBadgeEl.textContent="🧩 baixando modelo "+Math.round(f*100)+"%"; }
+            else if(p.status==="done"){ setProg(1, "Download pronto, preparando..."); }
+          }
+        });
+        lastErr=null; break;
+      }catch(e){ localPipe=null; lastErr=e; setModelStatus("Modo rápido falhou neste navegador, tentando modo compatível..."); }
+    }
+    if(!localPipe) throw lastErr;
     setModelStatus("Modelo na RAM e pronto. Grátis, offline, sem key. Tudo que ele responde eu guardo na memória.");
     setProg(1,"Pronto");
   }catch(e){
