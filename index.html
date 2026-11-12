@@ -346,7 +346,7 @@ try {
 <div class="modalBack" id="modelModalBackEl" hidden>
   <div class="modal">
     <h3>🧩 Modelo neural local (grátis)</h3>
-    <p class="sub">Um modelo de verdade, o SmolLM2 135M (pequeno de propósito para PC fraco), que roda dentro do seu navegador: offline, sem key, sem pagar nada. Na primeira vez baixa de 100 a 150 MB e depois fica salvo. No seu note com 4GB ele responde devagar, tenha paciência. Dica: tudo que ele responde eu guardo na memória, então com o tempo ele usa mais a memória e menos o modelo. Dá para tirar da RAM e excluir o download quando quiser. Antes de baixar, feche as outras abas para liberar RAM.</p>
+    <p class="sub">Um modelo de verdade, o Qwen 0.5B, que roda dentro do seu navegador: offline, sem key, sem pagar nada. Na primeira vez baixa uns 500 MB e depois fica salvo. No seu note com 4GB ele responde devagar e usa bastante RAM: feche as outras abas antes de baixar. Dica: tudo que ele responde eu guardo na memória, então com o tempo ele usa mais a memória e menos o modelo. Dá para tirar da RAM e excluir o download quando quiser.</p>
     <p class="sub" id="modelStatusEl">Modelo fora da RAM.</p>
     <div class="progWrap"><div id="modelProgFillEl"></div></div>
     <p class="sub" id="modelProgLabelEl"></p>
@@ -710,7 +710,7 @@ function deleteChat(id){
 }
 
 /* ---------- modelo neural local (grátis, roda no PC) ---------- */
-var LOCAL_MODEL_ID="onnx-community/SmolLM2-135M-Instruct";
+var LOCAL_MODEL_ID="onnx-community/Qwen2.5-0.5B-Instruct";
 var localPipe=null, localLoading=false;
 function setModelStatus(t){ var el=$("modelStatusEl"); if(el) el.textContent=t; }
 function setProg(f,label){ var b=$("modelProgFillEl"), l=$("modelProgLabelEl"); if(b) b.style.width=Math.round((f||0)*100)+"%"; if(l) l.textContent=label||""; }
@@ -730,8 +730,9 @@ async function ensureLocalModel(){
     var hasAdapter=false;
     try{ if(navigator.gpu){ var ad=await navigator.gpu.requestAdapter(); hasAdapter=!!ad; } }catch(e){}
     var modes = [];
-    if(hasAdapter) modes.push({dtype:"q4f16", device:"webgpu", msg:"Baixando modelo (100 a 150 MB, uma vez só). Depois fica salvo no navegador."});
-    modes.push({dtype:"quantized", device:"wasm", msg:"Modo compatível (mais lento, mas funciona em qualquer PC). Baixando modelo (uma vez só)..."});    var lastErr=null;
+    if(hasAdapter) modes.push({dtype:"q4f16", device:"webgpu", msg:"Baixando modelo (400 a 500 MB, uma vez só). Depois fica salvo no navegador."});
+    modes.push({dtype:"quantized", device:"wasm", msg:"Modo compatível (mais lento, mas funciona em qualquer PC). Baixando modelo, 500 MB uma vez só..."});
+    var lastErr=null;
     for(var mi=0; mi<modes.length; mi++){
       try{
         setModelStatus(modes[mi].msg);
