@@ -296,6 +296,7 @@ msgInput.addEventListener("input", persistDraft);
 let stopLoad = false;
 let backend = null;
 let cpuWllama = null;
+let abortCtl = null;
 startBtn.onclick = async () => {
   if (engine || cpuWllama) return;
   startBtn.disabled = true; loadWrap.hidden = false; loadBar.style.width = "0%"; loadTxt.textContent = "Baixando...";
@@ -309,6 +310,7 @@ startBtn.onclick = async () => {
         {
           n_threads: Math.min(4, navigator.hardwareConcurrency || 2),
           n_gpu_layers: 0,
+          n_ctx: 4096,
           progressCallback: (p) => {
             if (stopLoad) return;
             const pct = p && p.total ? Math.round((p.loaded / p.total) * 100) : 0;
@@ -492,16 +494,19 @@ async function send() {
   }
   if (imgs.length && !isVis) ctxStr += "[imagem anexada: " + imgs.map(i => i.name + " (" + i.w + "x" + i.h + ")").join(", ") + " — este modelo não enxerga fotos; troque para o modelo Phi Visão]\n";
   const kbHits = kbRetrieve(text + " " + ctxStr);
-  const kbBudget = isCpuMode ? 600 : 1200;
-  const kbCtx = kbHits.length ? "[Do seu caderno (" + kbHits.map(h => h.name).join(", ") + "):\n" + kbHits.map(h => h.ch).join("\n---\n").slice(0, kbBudget) + "]" : "";
+  const kbBudget = isCpuMode ? 400 : 1200;
+  const kbNames = kbHits.map(h => h.name).filter((v, i, a) => a.indexOf(v) === i).join(", ");
+  const kbCtx = kbHits.length ? "[Do seu caderno (" + kbNames + "):\n" + kbHits.map(h => h.ch).join("\n---\n").slice(0, kbBudget) + "]" : "";
   const fullText = (ctxStr ? ctxStr + "\n" : "") + (kbCtx ? kbCtx + "\n" : "") + text;
+  let sendText = fullText;
+  if (isCpuMode && sendText.length > 1500) sendText = sendText.slice(0, 1500) + "\n[...cortado: o modo CPU só lê os primeiros ~1500 caracteres por vez]";
   let userMsg;
   if (isVis && imgs.length) {
     userMsg = { role: "user", content: [{ type: "text", text: fullText || "Descreva a imagem." }].concat(imgs.map(i => ({ type: "image_url", image_url: { url: i.dataUrl } }))) };
   } else {
-    userMsg = { role: "user", content: fullText };
+    userMsg = { role: "user", content: sendText };
   }
-  addMsg("user", fullText || "(foto)", imgs.map(i => i.dataUrl));
+  addMsg("user", sendText || "(foto)", imgs.map(i => i.dataUrl));
   msgInput.value = ""; persistDraft();
   pending = []; renderPending();
   c.history.push(userMsg);
@@ -525,13 +530,36 @@ async function send() {
       }
       aiEl.classList.remove("typing");
     } else {
-      const cpuSys = { role: "system", content: "Você é Toubi TNV, assistente do Tauan. Responda SEMPRE em português brasileiro, curto (máx 5 linhas). Ajude com código HTML/CSS/JS. Nunca recuse código." + (extraRules.length ? " Regras extras: " + extraRules.join(" ") : "") };
-      const cpuBody = (c.history.length > 7 ? c.history.slice(-6) : c.history.slice(1)).filter(m => m.role !== "system");
-      const cpuHist = [cpuSys].concat(cpuBody).map(m => ({ role: m.role, content: msgText(m).slice(0, 900) }));
-      const out = await cpuWllama.createChatCompletion({ messages: cpuHist, max_tokens: 220, temperature: parseFloat(tempInput.value), top_p: 0.9 });
+      const cpuSysText = "Você é Toubi TNV, assistente do Tauan. Responda SEMPRE em português brasileiro, curto (máx 5 linhas). Ajude com código HTML/CSS/JS. Nunca recuse código." + (extraRules.length ? " Regras extras: " + extraRules.join(" ") : "");
+      const cpuSys = { role: "system", content: cpuSysText };
+      const cpuBody = (c.history.length > 5 ? c.history.slice(-4) : c.history.slice(1)).filter(m => m.role !== "system");
+      const cpuHist = [cpuSys].concat(cpuBody).map(m => ({ role: m.role, content: msgText(m).slice(0, 500) }));
+      const cpuOnce = async (hist, maxTok) => {
+        abortCtl = new AbortController();
+        const s = await cpuWllama.createChatCompletion({ messages: hist, max_tokens: maxTok, temperature: parseFloat(tempInput.value), top_p: 0.9, penalty_repeat: 1.12, penalty_freq: 0.5, penalty_present: 0.4, penalty_last_n: 128, stream: true, abortSignal: abortCtl.signal });
+        let out = "";
+        for await (const chunk of s) {
+          if (stopFlag) break;
+          const d = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].delta ? chunk.choices[0].delta.content || "" : "";
+          out += d; aiEl.textContent = out; chatEl.scrollTop = chatEl.scrollHeight;
+        }
+        return out;
+      };
+      try {
+        full = await cpuOnce(cpuHist, 180);
+      } catch (cpuErr) {
+        const cm = (cpuErr && cpuErr.message ? cpuErr.message : "" + cpuErr) + "";
+        if (/exceed|context size|too long/i.test(cm) && !stopFlag) {
+          aiEl.textContent = "(anexo grande demais, tentando resumido...)";
+          const prevUsers = c.history.filter(m => m.role === "user");
+          const lu = prevUsers.length ? prevUsers[prevUsers.length - 1] : { content: text };
+          full = await cpuOnce([{ role: "system", content: cpuSysText }, { role: "user", content: msgText(lu).slice(0, 400) }], 120);
+        } else { throw cpuErr; }
+      }
+      abortCtl = null;
       aiEl.classList.remove("typing");
       if (stopFlag) { full = ""; }
-      else { full = (out && out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content ? out.choices[0].message.content : "").trim(); }
+      else { full = (full || "").trim(); }
     }
     if (!full) full = "(interrompido)";
     aiEl.textContent = full;
@@ -544,12 +572,17 @@ async function send() {
     c.updatedAt = Date.now(); save();
     const secs = (performance.now() - t0) / 1000;
     statEl.textContent = (secs > 0 ? secs.toFixed(1) + "s" : "") + (kbHits.length ? " 📚" + kbHits.length : "");
-  } catch (err18) { console.error(err18); aiEl.classList.remove("typing"); aiEl.textContent = "Erro: " + (err18 && err18.message ? err18.message : err18); }
+  } catch (err18) {
+    console.error(err18); aiEl.classList.remove("typing"); abortCtl = null;
+    const em = (err18 && err18.message ? err18.message : "" + err18) + "";
+    if (stopFlag || /abort|cancel/i.test(em)) { if (!full) { full = "(interrompido)"; aiEl.textContent = full; } }
+    else aiEl.textContent = "Erro: " + em;
+  }
   generating = false; sendBtn.disabled = false; stopBtn.hidden = true; msgInput.focus();
 }
 sendBtn.onclick = send;
 msgInput.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-stopBtn.onclick = () => { stopFlag = true; };
+stopBtn.onclick = () => { stopFlag = true; try { if (abortCtl) abortCtl.abort(); } catch (errStop) {} };
 
 // ---- limpar / backup / regras ----
 let wipeArmed = false;
