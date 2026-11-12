@@ -2,228 +2,151 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Rede Neural Real - Aprendizado do Zero</title>
+<title>IA Transformer Local (~100MB) + Memória Evolutiva</title>
 <style>
-  body { font-family: monospace; background: #0d0d0d; color: #00ff88; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; height: 95vh; }
-  h2 { margin: 0 0 5px 0; }
-  #info { font-size: 12px; color: #888; margin-bottom: 10px; }
-  #chat { width: 100%; max-width: 650px; flex: 1; background: #141414; border: 1px solid #2a2a2a; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; border-radius: 6px; }
-  .msg { padding: 8px 12px; border-radius: 4px; max-width: 85%; word-wrap: break-word; line-height: 1.4; }
-  .user { background: #1b3b2b; color: #fff; align-self: flex-end; }
-  .ai { background: #222; color: #00ff88; align-self: flex-start; border-left: 2px solid #00ff88; }
-  .sys { color: #ffaa00; font-size: 11px; align-self: center; text-align: center; }
+  body { font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; height: 95vh; }
+  h2 { margin: 0 0 8px 0; color: #00e676; }
+  #status-box { width: 100%; max-width: 650px; background: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #333; font-size: 13px; }
+  #bar-bg { width: 100%; height: 8px; background: #333; border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  #bar-fill { width: 0%; height: 100%; background: #00e676; transition: width 0.2s; }
+  #chat { width: 100%; max-width: 650px; flex: 1; background: #181818; border-radius: 8px; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; border: 1px solid #333; }
+  .msg { padding: 10px 14px; border-radius: 8px; max-width: 82%; line-height: 1.4; word-wrap: break-word; }
+  .user { background: #2962ff; color: white; align-self: flex-end; }
+  .ai { background: #262626; color: #e0e0e0; align-self: flex-start; border-left: 3px solid #00e676; }
+  .sys { background: #2b2600; color: #ffd54f; align-self: center; font-size: 12px; text-align: center; }
   #controls { width: 100%; max-width: 650px; display: flex; gap: 8px; margin-top: 10px; }
-  input { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff88; font-family: monospace; font-size: 14px; outline: none; }
-  button { padding: 10px 16px; background: #00ff88; color: #000; border: none; font-weight: bold; cursor: pointer; font-family: monospace; }
-  button:hover { background: #00cc6a; }
+  input { flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #444; background: #222; color: white; font-size: 15px; outline: none; }
+  button { padding: 12px 18px; border: none; border-radius: 6px; background: #00e676; color: #000; font-weight: bold; cursor: pointer; }
+  button:disabled { background: #555; color: #888; cursor: not-allowed; }
 </style>
 </head>
 <body>
 
-  <h2>REDE NEURAL RECORRENTE (RNN) - ZERO PRÉ-PROGRAMAÇÃO</h2>
-  <div id="info">Épocas treinadas: 0 | Taxa de Erro: 100% | Neurônios Ocultos: 32</div>
+  <h2>IA Neural Local (Transformers.js)</h2>
+  <div id="status-box">
+    <div id="status-text">Iniciando motor neural no navegador...</div>
+    <div id="bar-bg"><div id="bar-fill"></div></div>
+  </div>
 
   <div id="chat">
-    <div class="msg sys">SISTEMA INICIALIZADO COM PESOS ALEATÓRIOS.<br>Eu sou uma rede neural vazia. Tudo que você escrever será usado para ajustar minhas sinapses matemáticas.<br>Dica: Quanto mais frases em português você enviar, mais rápido meus neurônios saem do ruído aleatório.</div>
+    <div class="msg sys">Aguarde o download único do modelo (~100 MB) para o cache do navegador. Depois disso, ela pensará sozinha aqui dentro!</div>
   </div>
 
   <div id="controls">
-    <input type="text" id="input" placeholder="Converse ou ensine frases em português..." autocomplete="off">
-    <button onclick="interagir()">Enviar & Treinar</button>
+    <input type="text" id="input" placeholder="Aguardando cérebro carregar..." disabled autocomplete="off">
+    <button id="btn-enviar" disabled>Enviar</button>
   </div>
 
-<script>
-  // Alfabeto base que a rede neural consegue enxergar
-  const alfabeto = " abcdefghijklmnopqrstuvwxyzáàâãéèêíóôõúç.,!?";
-  const vocabSize = alfabeto.length;
-  const hiddenSize = 32; // Quantidade de neurônios na camada oculta (leve para notebook básico)
-  const learningRate = 0.08;
-  let epocas = 0;
+  <script type="module">
+    import { pipeline, env } from 'https://jsdelivr.net';
 
-  // Inicializa matrizes de pesos sinápticos com valores aleatórios (cérebro recém-nascido)
-  function criarMatriz(linhas, colunas) {
-    return Array.from({ length: linhas }, () =>
-      Array.from({ length: colunas }, () => (Math.random() - 0.5) * 0.2)
-    );
-  }
+    // Permite baixar o modelo do HuggingFace e salvar no cache local do navegador
+    env.allowLocalModels = false;
+    env.useBrowserCache = true;
 
-  let Wxh = criarMatriz(hiddenSize, vocabSize);  // Pesos da entrada para neurônios ocultos
-  let Whh = criarMatriz(hiddenSize, hiddenSize); // Pesos de memória recorrente (contexto)
-  let Why = criarMatriz(vocabSize, hiddenSize);  // Pesos dos neurônios ocultos para saída
-  let bh = new Array(hiddenSize).fill(0);
-  let by = new Array(vocabSize).fill(0);
+    const statusText = document.getElementById('status-text');
+    const barFill = document.getElementById('bar-fill');
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('input');
+    const btnEnviar = document.getElementById('btn-enviar');
 
-  // Carrega cérebro salvo se existir
-  const salvo = localStorage.getItem('rnn_cerebro_pesos');
-  if (salvo) {
-    const dados = JSON.parse(salvo);
-    Wxh = dados.Wxh; Whh = dados.Whh; Why = dados.Why;
-    bh = dados.bh; by = dados.by; epocas = dados.epocas;
-  }
+    let gerador = null;
+    // Memória persistente onde ficam os aprendizados que você passa para ela
+    let memoriaAprendida = JSON.parse(localStorage.getItem('ia_transformer_memoria')) || [];
 
-  function softmax(arr) {
-    const max = Math.max(...arr);
-    const exps = arr.map(x => Math.exp(x - max));
-    const sum = exps.reduce((a, b) => a + b, 0);
-    return exps.map(x => x / sum);
-  }
-
-  // Passo para frente (Forward Pass) + Retropropagação do erro (Backpropagation)
-  function treinarSequencia(texto, repeticoes = 15) {
-    const indices = texto.toLowerCase().split('')
-      .map(c => alfabeto.indexOf(c))
-      .filter(i => i !== -1);
-
-    if (indices.length < 2) return 0;
-
-    let erroTotal = 0;
-
-    for (let rep = 0; rep < repeticoes; rep++) {
-      let hPrev = new Array(hiddenSize).fill(0);
-      let hs = { "-1": hPrev };
-      let ps = {};
-      erroTotal = 0;
-
-      // 1. Forward Pass (A rede tenta prever a próxima letra)
-      for (let t = 0; t < indices.length - 1; t++) {
-        const xIdx = indices[t];
-        const targetIdx = indices[t + 1];
-
-        let h = new Array(hiddenSize).fill(0);
-        for (let i = 0; i < hiddenSize; i++) {
-          let soma = bh[i] + Wxh[i][xIdx];
-          for (let j = 0; j < hiddenSize; j++) {
-            soma += Whh[i][j] * hs[t - 1][j];
-          }
-          h[i] = Math.tanh(soma); // Função de ativação neural
-        }
-        hs[t] = h;
-
-        let y = new Array(vocabSize).fill(0);
-        for (let i = 0; i < vocabSize; i++) {
-          let soma = by[i];
-          for (let j = 0; j < hiddenSize; j++) {
-            soma += Why[i][j] * h[j];
-          }
-          y[i] = soma;
-        }
-
-        ps[t] = softmax(y);
-        erroTotal += -Math.log(ps[t][targetIdx] + 1e-8);
-      }
-
-      // 2. Backpropagation (Ajusta os pesos matemáticos com base no erro)
-      let dhNext = new Array(hiddenSize).fill(0);
-      for (let t = indices.length - 2; t >= 0; t--) {
-        const xIdx = indices[t];
-        const targetIdx = indices[t + 1];
-        let dy = [...ps[t]];
-        dy[targetIdx] -= 1; // Gradiente do erro
-
-        for (let i = 0; i < vocabSize; i++) {
-          by[i] -= learningRate * dy[i];
-          for (let j = 0; j < hiddenSize; j++) {
-            Why[i][j] -= learningRate * dy[i] * hs[t][j];
-          }
-        }
-
-        let dh = new Array(hiddenSize).fill(0);
-        for (let i = 0; i < hiddenSize; i++) {
-          let soma = dhNext[i];
-          for (let j = 0; j < vocabSize; j++) {
-            soma += Why[j][i] * dy[j];
-          }
-          dh[i] = soma * (1 - hs[t][i] * hs[t][i]); // Derivada da tanh
-        }
-
-        for (let i = 0; i < hiddenSize; i++) {
-          bh[i] -= learningRate * dh[i];
-          Wxh[i][xIdx] -= learningRate * dh[i];
-          for (let j = 0; j < hiddenSize; j++) {
-            Whh[i][j] -= learningRate * dh[i] * hs[t - 1][j];
-          }
-        }
-        dhNext = dh;
-      }
-      epocas++;
+    function addMsg(texto, tipo) {
+      const div = document.createElement('div');
+      div.className = `msg ${tipo}`;
+      div.innerText = texto;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
     }
 
-    localStorage.setItem('rnn_cerebro_pesos', JSON.stringify({ Wxh, Whh, Why, bh, by, epocas }));
-    return (erroTotal / indices.length).toFixed(2);
-  }
+    // Carrega um modelo Transformer real e super leve (~135M parâmetros quantizado)
+    async function carregarIA() {
+      try {
+        gerador = await pipeline('text-generation', 'HuggingFaceTB/SmolLM2-135M-Instruct', {
+          dtype: 'q4', // Compressão leve para rodar bem em notebook básico
+          progress_callback: (info) => {
+            if (info.status === 'progress') {
+              const pct = Math.round(info.progress || 0);
+              statusText.innerText = `Baixando cérebro neural (${info.file}): ${pct}%`;
+              barFill.style.width = `${pct}%`;
+            } else if (info.status === 'ready') {
+              statusText.innerText = 'Cérebro carregado na memória! Pronto para conversar e aprender.';
+              barFill.style.width = '100%';
+            }
+          }
+        });
 
-  // Gera resposta autônoma baseada apenas nos pesos neurais atuais
-  function gerarResposta(semente, tamanho = 45) {
-    let h = new Array(hiddenSize).fill(0);
-    let textoLimpo = semente.toLowerCase().split('').filter(c => alfabeto.includes(c));
-    let charIdx = textoLimpo.length > 0 ? alfabeto.indexOf(textoLimpo[textoLimpo.length - 1]) : 0;
-    let resultado = "";
-
-    for (let t = 0; t < tamanho; t++) {
-      let hNovo = new Array(hiddenSize).fill(0);
-      for (let i = 0; i < hiddenSize; i++) {
-        let soma = bh[i] + Wxh[i][charIdx];
-        for (let j = 0; j < hiddenSize; j++) {
-          soma += Whh[i][j] * h[j];
-        }
-        hNovo[i] = Math.tanh(soma);
+        input.disabled = false;
+        btnEnviar.disabled = false;
+        input.placeholder = "Converse ou ensine algo novo...";
+        addMsg("Pronto! Já estou ativa no seu navegador. Tudo que conversarmos vai moldar minhas próximas respostas.", "sys");
+      } catch (erro) {
+        statusText.innerText = "Erro ao carregar modelo: " + erro.message;
+        console.error(erro);
       }
-      h = hNovo;
-
-      let y = new Array(vocabSize).fill(0);
-      for (let i = 0; i < vocabSize; i++) {
-        let soma = by[i];
-        for (let j = 0; j < hiddenSize; j++) {
-          soma += Why[i][j] * h[j];
-        }
-        y[i] = soma;
-      }
-
-      const probs = softmax(y);
-      // Amostragem probabilística baseada nas ativações dos neurônios
-      let r = Math.random();
-      let acumulado = 0;
-      for (let i = 0; i < vocabSize; i++) {
-        acumulado += probs[i];
-        if (r <= acumulado) {
-          charIdx = i;
-          break;
-        }
-      }
-      resultado += alfabeto[charIdx];
     }
-    return resultado.trim() || "...";
-  }
 
-  const chat = document.getElementById('chat');
-  const input = document.getElementById('input');
-  const info = document.getElementById('info');
+    // Função de pensamento usando a rede neural Transformer + sua memória evolutiva
+    async function responder() {
+      const textoUsuario = input.value.trim();
+      if (!textoUsuario || !gerador) return;
 
-  function addMsg(txt, cls) {
-    const d = document.createElement('div');
-    d.className = `msg ${cls}`;
-    d.innerText = txt;
-    chat.appendChild(d);
-    chat.scrollTop = chat.scrollHeight;
-  }
+      input.value = '';
+      input.disabled = true;
+      btnEnviar.disabled = true;
+      addMsg(textoUsuario, 'user');
 
-  function interagir() {
-    const txt = input.value.trim();
-    if (!txt) return;
-    input.value = '';
-    addMsg(txt, 'user');
+      // Guarda a interação na memória evolutiva (mantém os últimos 15 aprendizados mais relevantes)
+      memoriaAprendida.push(`Humano: ${textoUsuario}`);
+      if (memoriaAprendida.length > 20) memoriaAprendida.shift();
+      localStorage.setItem('ia_transformer_memoria', JSON.stringify(memoriaAprendida));
 
-    setTimeout(() => {
-      // Treina a rede neural com a entrada do usuário (20 ciclos de ajuste por mensagem)
-      const perda = treinarSequencia(txt + " ", 20);
-      const resposta = gerarResposta(txt, 50);
-      addMsg(resposta, 'ai');
-      info.innerText = `Épocas treinadas: ${epocas} | Perda (Erro Matemático): ${perda} | Neurônios: ${hiddenSize}`;
-    }, 50);
-  }
+      // Monta o prompt injetando o que ela já aprendeu com você
+      const contextoHistorico = memoriaAprendida.slice(-8).join("\n");
+      const mensagens = [
+        { 
+          role: "system", 
+          content: "Você é uma inteligência artificial jovem em fase de aprendizado. Responda sempre em português, de forma curta, curiosa e natural, aprendendo com o que o usuário diz." 
+        },
+        { 
+          role: "user", 
+          content: `Histórico recente do que aprendi:\n${contextoHistorico}\n\nResponda agora à última mensagem em português:` 
+        }
+      ];
 
-  input.addEventListener('keypress', e => { if (e.key === 'Enter') interagir(); });
-  if (epocas > 0) info.innerText = `Épocas treinadas: ${epocas} | Memória Neural Carregada | Neurônios: ${hiddenSize}`;
-</script>
+      try {
+        const saida = await gerador(mensagens, {
+          max_new_tokens: 60,
+          temperature: 0.8,      // Controla a criatividade (0.8 deixa ela mais espontânea)
+          do_sample: true,
+          repetition_penalty: 1.2
+        });
+
+        // Extrai apenas a resposta nova gerada pela rede neural
+        const respostaCompleta = saida[0].generated_text;
+        const respostaIA = respostaCompleta[respostaCompleta.length - 1].content.trim();
+
+        addMsg(respostaIA || "...", 'ai');
+
+        // Salva a própria resposta na memória para ela lembrar o que falou
+        memoriaAprendida.push(`IA: ${respostaIA}`);
+        localStorage.setItem('ia_transformer_memoria', JSON.stringify(memoriaAprendida));
+      } catch (e) {
+        addMsg("Buguei ao processar essa frase: " + e.message, 'sys');
+      }
+
+      input.disabled = false;
+      btnEnviar.disabled = false;
+      input.focus();
+    }
+
+    btnEnviar.addEventListener('click', responder);
+    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') responder(); });
+
+    carregarIA();
+  </script>
 </body>
 </html>
