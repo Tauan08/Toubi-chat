@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chat Básico • Transformers.js</title>
+    <title>Chat Rápido • Qwen2.5-0.5B</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -40,6 +40,8 @@
             background: #f0f2f5;
             padding: 4px 10px;
             border-radius: 20px;
+            margin-left: auto;
+            white-space: nowrap;
         }
         #chatOutput {
             flex: 1;
@@ -106,12 +108,12 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h1>Chat Básico</h1>
-            <span class="status" id="status">Carregando modelo…</span>
+            <h1>Chat Rápido</h1>
+            <span class="status" id="status">Iniciando…</span>
         </div>
         <div id="chatOutput"></div>
         <div class="input-area">
-            <input id="userInput" placeholder="Digite sua mensagem…" disabled />
+            <input id="userInput" placeholder="Aguarde o modelo aquecer…" disabled />
             <button id="sendBtn" disabled>Enviar</button>
         </div>
     </div>
@@ -119,7 +121,10 @@
     <script type="module">
         import { pipeline, TextStreamer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4';
 
-        const MODEL_ID = 'HuggingFaceTB/SmolLM2-135M-Instruct';
+        const MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct';
+        const MAX_NEW_TOKENS = 60;      // Respostas curtas e rápidas
+        const MAX_HISTORY = 7;          // System + últimas 6 mensagens
+
         const chatOutput = document.getElementById('chatOutput');
         const userInput = document.getElementById('userInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -128,35 +133,68 @@
         let generator = null;
         let isGenerating = false;
 
-        // Histórico simples no formato de chat
         const messages = [
             {
                 role: 'system',
-                content: 'Você é um assistente útil e responde em português de forma clara e curta.'
+                content: 'Você é um assistente útil e responde em português de forma clara, curta e direta.'
             }
         ];
 
-        // Carrega o modelo (tenta WebGPU; se não houver, usa CPU/WASM)
+        async function detectDevice() {
+            if (!navigator.gpu) return 'wasm';
+            try {
+                const adapter = await navigator.gpu.requestAdapter();
+                return adapter ? 'webgpu' : 'wasm';
+            } catch {
+                return 'wasm';
+            }
+        }
+
+        // Warm-up: compila os shaders com um prompt curto e descarta o resultado
+        async function warmUp() {
+            statusEl.textContent = 'Aquecendo modelo (compilando shaders)…';
+            try {
+                await generator('Oi', {
+                    max_new_tokens: 2,
+                    do_sample: false,
+                    streamer: undefined
+                });
+            } catch (e) {
+                console.warn('Warm-up falhou, mas o modelo pode funcionar:', e);
+            }
+        }
+
         async function loadModel() {
+            const device = await detectDevice();
+            console.log('Device escolhido:', device);
+            statusEl.textContent = `Carregando modelo (${device})…`;
+
             try {
                 generator = await pipeline('text-generation', MODEL_ID, {
-                    device: 'webgpu',   // tenta GPU
-                    dtype: 'q4'         // quantização de 4 bits para ser bem leve
+                    device,
+                    dtype: 'q4',
+                    progress_callback: (p) => {
+                        if (p.status === 'progress' && p.file) {
+                            statusEl.textContent =
+                                `Baixando ${p.file} (${Math.round(p.progress || 0)}%)`;
+                        }
+                    }
                 });
-                statusEl.textContent = 'Modelo carregado (WebGPU)';
-            } catch (e) {
-                console.warn('WebGPU indisponível, usando CPU/WASM:', e);
-                generator = await pipeline('text-generation', MODEL_ID, {
-                    dtype: 'q4'
-                });
-                statusEl.textContent = 'Modelo carregado (CPU/WASM)';
+            } catch (err) {
+                console.error('Falha ao carregar modelo:', err);
+                statusEl.textContent = 'Erro ao carregar modelo — veja o console';
+                return;
             }
+
+            // Compila os shaders ANTES de liberar o input
+            await warmUp();
+
+            statusEl.textContent = `Pronto (${device === 'webgpu' ? 'WebGPU' : 'CPU'})`;
             userInput.disabled = false;
             sendBtn.disabled = false;
             userInput.focus();
         }
 
-        // Adiciona uma bolha de mensagem
         function addMessage(text, sender, streaming = false) {
             const div = document.createElement('div');
             div.className = `message ${sender}` + (streaming ? ' streaming' : '');
@@ -166,14 +204,20 @@
             return div;
         }
 
-        // Formata o histórico no template de chat do SmolLM2 (ChatML)
         function formatPrompt() {
             return messages.map(m => {
-                if (m.role === 'system') return `<|im_start|>system\n${m.content}<|im_end|>`;
-                if (m.role === 'user')   return `<|im_start|>user\n${m.content}<|im_end|>`;
+                if (m.role === 'system')    return `<|im_start|>system\n${m.content}<|im_end|>`;
+                if (m.role === 'user')      return `<|im_start|>user\n${m.content}<|im_end|>`;
                 if (m.role === 'assistant') return `<|im_start|>assistant\n${m.content}<|im_end|>`;
                 return '';
             }).join('\n') + '\n<|im_start|>assistant\n';
+        }
+
+        function trimHistory() {
+            if (messages.length > MAX_HISTORY) {
+                // Mantém o system (índice 0) e remove as mensagens mais antigas
+                messages.splice(1, messages.length - MAX_HISTORY);
+            }
         }
 
         async function generateResponse() {
@@ -187,10 +231,9 @@
 
             addMessage(userText, 'user');
             messages.push({ role: 'user', content: userText });
+            trimHistory();
 
-            // Cria a bolha do bot vazia para o streaming
             const botBubble = addMessage('', 'bot', true);
-
             const prompt = formatPrompt();
             let fullText = '';
 
@@ -199,7 +242,6 @@
                 skip_special_tokens: true,
                 callback_function: (token) => {
                     fullText += token;
-                    // Remove eventuais tokens especiais que escapem
                     botBubble.textContent = fullText.replace(/<\|.*?\|>/g, '');
                     chatOutput.scrollTop = chatOutput.scrollHeight;
                 }
@@ -207,18 +249,19 @@
 
             try {
                 await generator(prompt, {
-                    max_new_tokens: 200,
-                    temperature: 0.7,
+                    max_new_tokens: MAX_NEW_TOKENS,
+                    temperature: 0.6,
+                    top_k: 40,
                     top_p: 0.9,
                     do_sample: true,
+                    repetition_penalty: 1.1,
                     streamer
                 });
             } catch (err) {
-                botBubble.textContent = 'Desculpe, ocorreu um erro ao gerar a resposta.';
                 console.error(err);
+                botBubble.textContent = 'Desculpe, ocorreu um erro ao gerar a resposta.';
             } finally {
                 botBubble.classList.remove('streaming');
-                // Guarda apenas a parte gerada (sem o prompt) no histórico
                 const assistantReply = fullText.replace(/<\|.*?\|>/g, '').trim();
                 if (assistantReply) {
                     messages.push({ role: 'assistant', content: assistantReply });
