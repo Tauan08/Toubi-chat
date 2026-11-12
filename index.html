@@ -321,7 +321,7 @@ startBtn.onclick = async () => {
       backend = "cpu"; loadedId = modelSel.value;
       loadTxt.textContent = "Cérebro CPU pronto (lento, mas funciona sem placa). Pode conversar.";
       loadBar.style.width = "100%";
-    } catch (errCpu) { console.error(errCpu); loadTxt.textContent = "Erro no modo CPU: " + (errCpu && errCpu.message ? errCpu.message : errCpu); startBtn.disabled = false; }
+    } catch (errCpu) { console.error(errCpu); cpuWllama = null; loadTxt.textContent = "Erro no modo CPU: " + (errCpu && errCpu.message ? errCpu.message : errCpu); startBtn.disabled = false; }
     return;
   }
   try {
@@ -474,7 +474,9 @@ async function send() {
   const text = msgInput.value.trim();
   if ((!text && !pending.length) || generating) return;
   let c = activeChat(); if (!c) c = mkChat();
-  if (!engine && !cpuWllama) { loadWrap.hidden = false; loadTxt.textContent = "Carrega o cérebro primeiro (botão azul)."; return; }
+  if (backend === "cpu") {
+    if (!cpuWllama) { loadWrap.hidden = false; loadTxt.textContent = "O modo CPU falhou ao carregar. Clique Baixar e iniciar IA de novo."; return; }
+  } else if (!engine) { loadWrap.hidden = false; loadTxt.textContent = "Carrega o cérebro primeiro (botão azul)."; return; }
   generating = true; sendBtn.disabled = true; stopBtn.hidden = false; stopFlag = false;
   const isCpuMode = backend === "cpu";
   const isVis = currentModel().vision;
