@@ -3,1009 +3,573 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Toubi - sua AI leve que aprende com voce</title>
-<meta name="description" content="Chat estilo ChatGPT que roda ate em PC fraco: conversa offline, aprende com voce, guarda memoria, voz em texto, personalidade, backup e modelo neural local opcional.">
-<meta name="theme-color" content="#0f1115">
-</head>
-<body>
-<script>
-window.TOUBI_STANDALONE = true;
-if (typeof window.root === "undefined") {
-  window.root = { generateText: async function(){ throw new Error("IA gratuita do Perchance so funciona dentro do Perchance. Aqui use o modelo neural local, uma API key, ou ensine o Toubi."); } };
-}
-try {
-  if (!localStorage.getItem("toubi_v1_settings")) {
-    localStorage.setItem("toubi_v1_settings", JSON.stringify({endpoint:"https://api.openai.com/v1/chat/completions", model:"gpt-4o-mini", apiKey:"", useFree:false, threshold:0.55, useLocal:false}));
-  }
-} catch(e){}
-</script>
+<title>Toubi</title>
 <style>
   :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1e232e; --line:#2a3040;
-    --txt:#e8eaf0; --mut:#9aa3b5; --acc:#10a37f; --acc2:#0d8a6c;
-    --user:#2b3a55; --danger:#e05656; --warn:#e0a63f;
+    --bg:#0f1115; --bg2:#171a21; --bg3:#20242e; --border:#2a2f3a;
+    --txt:#e8eaed; --muted:#9aa0aa; --accent:#10a37f; --danger:#e05555;
   }
   *{box-sizing:border-box}
-  html,body{height:100%}
+  html,body{height:100%;margin:0}
   body{
-    margin:0; background:var(--bg); color:var(--txt);
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
-    text-align:left; overflow:hidden;
+    background:var(--bg); color:var(--txt);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:15px; overflow:hidden;
   }
-  #appCtn{display:flex; height:100dvh; width:100%}
-  /* ===== sidebar ===== */
-  #sideBarEl{
-    width:272px; min-width:272px; background:var(--panel);
-    border-right:1px solid var(--line);
-    display:flex; flex-direction:column; z-index:5;
-  }
-  #sideTopEl{padding:12px; border-bottom:1px solid var(--line)}
-  #brandEl{display:flex; align-items:center; gap:10px; margin-bottom:12px}
-  #logoEl{
-    width:36px; height:36px; border-radius:12px; display:grid; place-items:center;
-    background:linear-gradient(135deg,#10a37f,#5eead4); font-size:20px; font-weight:800; color:#06251d;
-  }
-  #brandEl b{font-size:17px}
-  #brandEl small{display:block; color:var(--mut); font-weight:400; font-size:11.5px}
-  #newChatBtn{
-    width:100%; padding:10px; border-radius:10px; border:1px solid var(--line);
-    background:var(--panel2); color:var(--txt); cursor:pointer; font-size:14px; font-weight:600;
-  }
-  #newChatBtn:hover{border-color:var(--acc)}
-  #searchChatInput{
-    width:100%; margin-top:8px; padding:9px 10px; border-radius:10px;
-    border:1px solid var(--line); background:#10131a; color:var(--txt); font-size:13px;
-  }
-  #chatListEl{flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px}
-  .chatItem{
-    padding:10px 10px; border-radius:10px; border:1px solid transparent;
-    cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13.5px;
-  }
-  .chatItem:hover{background:var(--panel2)}
-  .chatItem.active{background:var(--panel2); border-color:var(--line)}
-  .chatItem .t{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .chatItem .ic{opacity:.55; cursor:pointer; padding:2px 4px; border-radius:6px; font-size:13px}
-  .chatItem .ic:hover{opacity:1; background:#00000040}
-  #sideFootEl{padding:10px; border-top:1px solid var(--line); display:grid; gap:8px}
-  .sideBtn{
-    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
-    padding:9px 10px; border-radius:10px; border:1px solid var(--line);
-    background:transparent; color:var(--txt); cursor:pointer; font-size:13px;
-  }
-  .sideBtn:hover{background:var(--panel2)}
-  .sideBtn span.d{display:block; color:var(--mut); font-size:11px; font-weight:400}
-  #statsEl{font-size:11px; color:var(--mut); text-align:center; line-height:1.5}
-  /* ===== main ===== */
-  #mainCtn{flex:1; display:flex; flex-direction:column; min-width:0}
-  #topBarEl{
-    display:flex; align-items:center; gap:10px; padding:10px 14px;
-    border-bottom:1px solid var(--line); background:#12151c;
-  }
-  #menuBtn{display:none; background:transparent; border:1px solid var(--line); color:var(--txt); border-radius:8px; padding:7px 10px; cursor:pointer}
-  #modeBadgeEl{
-    font-size:12px; padding:5px 10px; border-radius:99px; border:1px solid var(--line);
-    color:var(--mut); white-space:nowrap;
-  }
-  #modeBadgeEl.ok{color:#7ef0c9; border-color:#1f6f5c}
-  #chatTitleEl{flex:1; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  #teachTopBtn,#configTopBtn{
-    border:1px solid var(--line); background:var(--panel2); color:var(--txt);
-    border-radius:9px; padding:8px 10px; cursor:pointer; font-size:13px; white-space:nowrap;
-  }
-  #teachTopBtn{background:var(--acc); border-color:var(--acc); color:#04251c; font-weight:700}
-  #msgsEl{flex:1; overflow-y:auto; padding:22px 14px 10px; display:flex; flex-direction:column; gap:16px; align-items:center}
-  #msgsInnerEl{width:100%; max-width:760px; display:flex; flex-direction:column; gap:16px}
-  .msg{display:flex; gap:10px; align-items:flex-start}
-  .avatar{
-    width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
-    font-size:15px; flex-shrink:0; margin-top:2px;
-  }
-  .avatar.you{background:#334155}
-  .avatar.ai{background:linear-gradient(135deg,#10a37f,#5eead4); color:#04251c; font-weight:800}
-  .bubble{
-    flex:1; min-width:0; padding:12px 14px; border-radius:14px; line-height:1.55; font-size:14.5px;
-    white-space:pre-wrap; word-wrap:break-word;
-  }
-  .msg.you .bubble{background:var(--user); border:1px solid #3b4f74}
-  .msg.ai .bubble{background:var(--panel2); border:1px solid var(--line)}
-  .metaRow{display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap}
-  .via{
-    font-size:11px; color:var(--mut); border:1px solid var(--line); padding:2px 8px; border-radius:99px;
-  }
-  .via.mem{color:#7ef0c9; border-color:#1f6f5c}
-  .via.api{color:#9ecbff; border-color:#2c4a72}
-  .via.free{color:#d6b3ff; border-color:#5b3f8c}
-  .miniAct{font-size:11.5px; background:transparent; border:1px solid var(--line); color:var(--mut); border-radius:99px; padding:3px 9px; cursor:pointer}
-  .miniAct:hover{color:var(--txt); border-color:var(--acc)}
-  .timeEl{font-size:11px; color:var(--mut)}
-  #emptyEl{
-    text-align:center; padding:30px 10px 10px; color:var(--mut);
-  }
-  #emptyEl h2{color:var(--txt); margin:6px 0 4px; font-size:26px}
-  #emptyEl p{margin:4px 0 14px; font-size:13.5px; line-height:1.6}
-  .chips{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
-  .chip{
-    border:1px solid var(--line); background:var(--panel); color:var(--txt);
-    border-radius:99px; padding:8px 12px; font-size:12.5px; cursor:pointer;
-  }
-  .chip:hover{border-color:var(--acc)}
-  #composerWrapEl{padding:10px 14px 4px; background:linear-gradient(transparent, #0f1115 30%)}
-  #composerEl{
-    max-width:760px; margin:0 auto; display:flex; gap:8px; align-items:flex-end;
-    background:var(--panel2); border:1px solid var(--line); border-radius:16px; padding:8px;
-  }
-  #msgInput{
-    flex:1; background:transparent; border:0; outline:0; color:var(--txt);
-    font-size:14.5px; resize:none; max-height:140px; padding:8px 6px; font-family:inherit; line-height:1.5;
-  }
-  .cBtn{
-    border:1px solid var(--line); background:#10131a; color:var(--txt);
-    border-radius:11px; padding:9px 11px; cursor:pointer; font-size:16px;
-  }
-  .cBtn:hover{border-color:var(--acc)}
-  #sendBtn{background:var(--acc); border-color:var(--acc); color:#04251c; font-weight:800}
-  #sendBtn:disabled{opacity:.5; cursor:wait}
-  #micBtn.listening{background:#7c2d12; border-color:#ea580c; animation:pulse 1s infinite}
-  @keyframes pulse{50%{transform:scale(1.08)}}
-  #hintEl{max-width:760px; margin:6px auto 10px; text-align:center; font-size:11px; color:var(--mut); padding:0 14px; line-height:1.5}
-  .typingDots span{display:inline-block; width:7px; height:7px; margin-right:4px; border-radius:99px; background:var(--mut); animation:blink 1s infinite}
-  .typingDots span:nth-child(2){animation-delay:.15s}.typingDots span:nth-child(3){animation-delay:.3s}
-  @keyframes blink{50%{opacity:.2}}
-  /* modals */
-  .modalBack{
-    position:fixed; inset:0; background:#000000b0; display:grid; place-items:center;
-    padding:14px; z-index:50;
-  }
-  .modalBack[hidden]{display:none !important}
-  .modal{
-    width:100%; max-width:560px; max-height:88dvh; overflow-y:auto;
-    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px;
-  }
-  .modal h3{margin:0 0 4px}
-  .modal p.sub{margin:0 0 12px; color:var(--mut); font-size:12.5px; line-height:1.6}
-  .modal label{display:block; font-size:12.5px; color:var(--mut); margin:10px 0 4px}
-  .modal input[type=text],.modal input[type=password],.modal textarea,.modal select{
-    width:100%; padding:10px; border-radius:10px; border:1px solid var(--line);
-    background:#10131a; color:var(--txt); font-size:13.5px; font-family:inherit;
-  }
-  .modal textarea{min-height:90px; resize:vertical; line-height:1.55}
-  .rowBtns{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap}
-  .btn{
-    padding:10px 14px; border-radius:10px; border:1px solid var(--line);
-    background:var(--panel2); color:var(--txt); cursor:pointer; font-size:13.5px; font-weight:600;
-  }
-  .btn.primary{background:var(--acc); border-color:var(--acc); color:#04251c}
-  .btn.danger{background:transparent; border-color:var(--danger); color:var(--danger)}
-  .btn:hover{filter:brightness(1.12)}
-  .memItem{border:1px solid var(--line); border-radius:10px; padding:10px; margin-top:8px; font-size:13px}
-  .memItem b.q{color:#7ef0c9}
-  .memItem .a{color:var(--txt); margin-top:4px; white-space:pre-wrap}
-  .memItem .m{color:var(--mut); font-size:11px; margin-top:6px}
-  #toastEl{
-    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
-    background:#0b0e13; border:1px solid var(--acc); color:var(--txt);
-    padding:10px 16px; border-radius:99px; font-size:13px; z-index:99; display:none; max-width:92vw;
-  }
-  @media (max-width:820px){
-    #sideBarEl{position:fixed; top:0; bottom:0; left:0; transform:translateX(-105%); transition:.2s; box-shadow:0 0 60px #000}
-    #sideBarEl.open{transform:none}
-    #menuBtn{display:block}
-    #teachTopBtn span.t2{display:none}
-  }
-  .progWrap{height:10px; border-radius:99px; background:#10131a; border:1px solid var(--line); overflow:hidden; margin-top:8px}
-  #modelProgFillEl{height:100%; width:0%; background:linear-gradient(90deg,var(--acc),#5eead4)}
-  .checkRow{display:flex !important; gap:8px; align-items:center; font-size:13.5px !important; color:var(--txt) !important; margin-top:12px !important}
-  .checkRow input{width:auto !important}
-</style>
+  button{font:inherit}
+  .app{display:flex;height:100dvh;overflow:hidden}
 
-<div id="appCtn">
-  <aside id="sideBarEl">
-    <div id="sideTopEl">
-      <div id="brandEl">
-        <div id="logoEl">T</div>
-        <div><b>Toubi</b><small>sua AI leve • aprende com você</small></div>
-      </div>
-      <button id="newChatBtn">+ Novo chat</button>
-      <input id="searchChatInput" type="text" placeholder="Buscar conversa..." autocomplete="off">
-    </div>
-    <div id="chatListEl"></div>
-    <div id="sideFootEl">
-      <button class="sideBtn" id="teachSideBtn">📚 Ensinar Toubi<span class="d">adicionar pergunta + resposta na memória</span></button>
-      <button class="sideBtn" id="memorySideBtn">🧠 Memória e aprendizado<span class="d">ver, baixar, importar, limpar</span></button>
-      <button class="sideBtn" id="configSideBtn">⚙️ Personalidade e API key<span class="d">jeito de falar, modelo online opcional</span></button>
-      <button class="sideBtn" id="backupSideBtn">💾 Backup e restaurar<span class="d">salvar conversas, voltar depois</span></button>
-      <button class="sideBtn" id="modelSideBtn">🧩 Modelo neural local<span class="d">IA grátis no PC, com download e limpeza</span></button>
-      <div id="statsEl">carregando...</div>
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:264px;flex:0 0 264px;background:var(--bg2);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;padding:10px;gap:8px;
+  }
+  .brand{font-weight:800;font-size:20px;padding:8px 6px;letter-spacing:.5px}
+  .brand span{color:var(--accent)}
+  .brand small{display:block;font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0}
+  .newchat{
+    display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border-radius:10px;
+    border:1px solid var(--border);background:transparent;color:var(--txt);cursor:pointer;
+  }
+  .newchat:hover{background:var(--bg3)}
+  .chat-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:2px}
+  .chat-list::-webkit-scrollbar{width:8px}
+  .chat-list::-webkit-scrollbar-thumb{background:#2f3542;border-radius:8px}
+  .chat-item{
+    display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:8px;cursor:pointer;
+    color:var(--muted);font-size:14px;user-select:none;
+  }
+  .chat-item:hover{background:var(--bg3);color:var(--txt)}
+  .chat-item.active{background:var(--bg3);color:var(--txt)}
+  .chat-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chat-item .acts{display:none;gap:2px}
+  .chat-item:hover .acts,.chat-item.active .acts{display:flex}
+  .mini{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 5px;border-radius:5px;line-height:1}
+  .mini:hover{background:#333a47;color:#fff}
+  .side-foot{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--border);padding-top:8px}
+  .side-btn{
+    display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border-radius:8px;
+    border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;text-align:left;
+  }
+  .side-btn:hover{background:var(--bg3);color:var(--txt)}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);flex:0 0 auto}
+  .title{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
+  .pill{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+  .pill.on{color:var(--accent);border-color:var(--accent)}
+  .icon-btn{
+    background:transparent;border:1px solid var(--border);color:var(--txt);
+    width:36px;height:36px;border-radius:10px;cursor:pointer;display:grid;place-items:center;flex:0 0 auto;
+  }
+  .icon-btn:hover{background:var(--bg3)}
+  .icon-btn.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
+  #toggleSidebar{display:none}
+
+  .messages{flex:1;overflow-y:auto;padding:22px 16px 8px;scroll-behavior:smooth}
+  .messages::-webkit-scrollbar{width:10px}
+  .messages::-webkit-scrollbar-thumb{background:#2f3542;border-radius:8px}
+  .msg{max-width:820px;margin:0 auto 20px;display:flex;gap:12px;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .avatar{
+    width:30px;height:30px;border-radius:9px;flex:0 0 30px;display:grid;place-items:center;
+    font-size:12px;font-weight:800;
+  }
+  .msg.user .avatar{background:#3b4a5f;color:#dbe6f5}
+  .msg.assistant .avatar{background:var(--accent);color:#04201a}
+  .bubble{flex:1;min-width:0;line-height:1.65;overflow-wrap:anywhere}
+  .msg.user .bubble{color:#dfe6f0}
+  .bubble pre{background:#0b0d12;border:1px solid var(--border);padding:10px 12px;border-radius:8px;overflow:auto;margin:8px 0}
+  .bubble code{background:#0b0d12;padding:1px 5px;border-radius:4px;font-size:13px;font-family:ui-monospace,Consolas,monospace}
+  .bubble pre code{background:none;padding:0}
+  .bubble a{color:var(--accent)}
+  .tagline{font-size:11px;color:var(--muted);margin-top:6px;opacity:.75}
+  .typing{display:flex;gap:5px;padding:6px 0}
+  .typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bounce 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+
+  .welcome{max-width:760px;margin:8vh auto 0;text-align:center;color:var(--muted)}
+  .welcome h1{font-size:30px;color:var(--txt);margin:0 0 8px}
+  .welcome p{margin:0 0 18px;line-height:1.6}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  .chip{
+    background:var(--bg2);border:1px solid var(--border);color:var(--txt);
+    padding:9px 14px;border-radius:12px;cursor:pointer;font-size:13px;
+  }
+  .chip:hover{background:var(--bg3)}
+
+  .composer-wrap{padding:8px 16px 18px;flex:0 0 auto}
+  .composer{
+    max-width:820px;margin:0 auto;display:flex;gap:6px;align-items:flex-end;
+    background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+    padding:7px 7px 7px 14px;
+  }
+  .composer:focus-within{border-color:#3a4354}
+  .composer textarea{
+    flex:1;background:none;border:none;color:var(--txt);resize:none;outline:none;
+    font:inherit;line-height:1.5;max-height:180px;padding:9px 0;
+  }
+  .send{
+    width:38px;height:38px;border-radius:11px;border:none;background:var(--accent);
+    color:#04201a;font-weight:800;cursor:pointer;display:grid;place-items:center;flex:0 0 auto;
+  }
+  .send:disabled{opacity:.4;cursor:not-allowed}
+  .hint{max-width:820px;margin:8px auto 0;font-size:11px;color:var(--muted);text-align:center}
+
+  /* ---------- MODAL ---------- */
+  .modal{
+    position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;
+    padding:20px;z-index:50;
+  }
+  .modal.hidden{display:none}
+  .modal-card{
+    background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+    width:min(640px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden;
+  }
+  .modal-head{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+  .modal-head h3{margin:0;font-size:16px}
+  .modal-head .mini{margin-left:auto;font-size:18px}
+  .modal-body{padding:18px;overflow-y:auto}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  .field input[type=text],.field input[type=password],.field input[type=number],.field textarea,.field select{
+    width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+    color:var(--txt);padding:10px 12px;font:inherit;outline:none;
+  }
+  .field input:focus,.field textarea:focus{border-color:var(--accent)}
+  .field small{display:block;color:var(--muted);font-size:11.5px;margin-top:5px;line-height:1.5}
+  .field textarea{resize:vertical;min-height:90px;line-height:1.5}
+  .field input[type=range]{width:100%}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .btn{
+    background:var(--accent);color:#04201a;border:none;padding:10px 16px;border-radius:10px;
+    cursor:pointer;font-weight:700;font-size:14px;
+  }
+  .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:500}
+  .btn.ghost:hover{background:var(--bg3)}
+  .btn.danger{background:var(--danger);color:#fff}
+  .mem-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+  .mem-q{font-size:13px;color:var(--muted);margin-bottom:4px}
+  .mem-a{font-size:13.5px;line-height:1.5;white-space:pre-wrap}
+  .mem-head{display:flex;gap:6px;align-items:center;margin-bottom:4px}
+  .mem-head .mini{margin-left:auto}
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#2a3140;border:1px solid var(--border);color:var(--txt);
+    padding:10px 18px;border-radius:10px;font-size:13px;z-index:99;opacity:0;
+    transition:opacity .25s, transform .25s;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+  /* ---------- MOBILE ---------- */
+  @media (max-width:760px){
+    #toggleSidebar{display:grid}
+    .sidebar{
+      position:fixed;inset:0 auto 0 0;z-index:40;transform:translateX(-100%);
+      transition:transform .22s ease;box-shadow:0 0 30px rgba(0,0,0,.6);
+    }
+    .sidebar.open{transform:none}
+    .messages{padding-top:14px}
+    .welcome{margin-top:4vh}
+    .welcome h1{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">Toubi<span>.</span><small>aprendendo junto com você</small></div>
+    <button class="newchat" id="newChat">＋ Novo chat</button>
+    <div class="chat-list" id="chatList"></div>
+    <div class="side-foot">
+      <button class="side-btn" id="btnMemory">🧠 Memória (<span id="memCount">0</span>)</button>
+      <button class="side-btn" id="btnSettings">⚙️ Configurações</button>
+      <button class="side-btn" id="btnBackup">💾 Backup / Restaurar</button>
     </div>
   </aside>
 
-  <main id="mainCtn">
-    <header id="topBarEl">
-      <button id="menuBtn">☰</button>
-      <div id="chatTitleEl">Toubi</div>
-      <div id="modeBadgeEl">modo local</div>
-      <button id="teachTopBtn"><span class="t2">📚</span> Ensinar</button>
-      <button id="configTopBtn">⚙️</button>
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn" id="toggleSidebar" title="Menu">☰</button>
+      <div class="title" id="chatTitle">Novo chat</div>
+      <span class="pill" id="statusPill">local</span>
     </header>
-    <div id="msgsEl"><div id="msgsInnerEl"></div></div>
-    <div id="composerWrapEl">
-      <div id="composerEl">
-        <button class="cBtn" id="micBtn" title="Falar (transcrever voz em texto)">🎤</button>
-        <textarea id="msgInput" rows="1" placeholder="Fala com o Toubi... (Enter envia, Shift+Enter pula linha)"></textarea>
-        <button class="cBtn" id="sendBtn" title="Enviar">➤</button>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="Fale com a Toubi… (Enter envia, Shift+Enter quebra linha)"></textarea>
+        <button class="icon-btn" id="micBtn" title="Falar">🎤</button>
+        <button class="send" id="sendBtn" title="Enviar">➤</button>
       </div>
-      <div id="hintEl">Toubi roda leve até em Celeron com 4GB: sem baixar modelo gigante. O que ele aprende fica salvo no navegador. Voz vira texto na hora. Enter envia.</div>
+      <div class="hint">
+        Ensine assim: <code>aprenda: pergunta | resposta</code> — a Toubi guarda mesmo offline.
+      </div>
     </div>
   </main>
 </div>
 
-<!-- Ensinar -->
-<div class="modalBack" id="teachModalBackEl" hidden>
-  <div class="modal">
-    <h3>📚 Ensinar o Toubi</h3>
-    <p class="sub">É assim que vocês aprendem juntos: você dá a pergunta e a resposta certa. Ele guarda na memória e usa depois sem gastar tokens de API. Exemplo pergunta: como faz café? resposta: ...</p>
-    <label>Pergunta (como você falaria)</label>
-    <input type="text" id="teachQInput" placeholder="Ex: qual meu time favorito?">
-    <label>Resposta certa (como o Toubi deve responder)</label>
-    <textarea id="teachAInput" placeholder="Ex: Seu time favorito é o Corinthians."></textarea>
-    <div class="rowBtns">
-      <button class="btn primary" id="teachSaveBtn">Salvar na memória</button>
-      <button class="btn" id="teachCancelBtn">Fechar</button>
+<!-- MODAL -->
+<div class="modal hidden" id="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="modalTitle">Título</h3>
+      <button class="mini" id="modalClose">✕</button>
     </div>
+    <div class="modal-body" id="modalBody"></div>
   </div>
 </div>
 
-<!-- Config -->
-<div class="modalBack" id="configModalBackEl" hidden>
-  <div class="modal">
-    <h3>⚙️ Personalidade e API</h3>
-    <p class="sub">Personalidade muda o jeito do Toubi falar. API key é opcional: serve para ele aprender mais rápido. Quando ele já aprendeu algo, ele responde da memória e nem gasta tokens.</p>
-    <label>Personalidade do Toubi</label>
-    <textarea id="personalityInput"></textarea>
-    <div class="rowBtns">
-      <button class="btn" id="personalityResetBtn">Voltar ao padrão</button>
-      <button class="btn primary" id="personalitySaveBtn">Salvar personalidade</button>
-    </div>
-    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-    <label>Usar IA gratuita do Perchance quando a memória não souber (sem key, sem custo)</label>
-    <select id="freeAiSelect">
-      <option value="on">Ligado — recomendado</option>
-      <option value="off">Desligado — só memória local</option>
-    </select>
-    <label>Confiança mínima para responder da memória sem gastar tokens</label>
-    <select id="thresholdSelect">
-      <option value="0.35">Baixa (35%) — usa memória com mais frequência</option>
-      <option value="0.55">Média (55%) — recomendado</option>
-      <option value="0.75">Alta (75%) — só usa se for bem parecido</option>
-    </select>
-    <label>Preset de API (OpenAI-compatível: OpenAI, Groq, OpenRouter, Gemini)</label>
-    <select id="presetSelect">
-      <option value="https://api.openai.com/v1/chat/completions">OpenAI</option>
-      <option value="https://api.groq.com/openai/v1/chat/completions">Groq</option>
-      <option value="https://openrouter.ai/api/v1/chat/completions">OpenRouter</option>
-      <option value="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions">Gemini via endpoint OpenAI-compatível</option>
-      <option value="custom">Personalizado...</option>
-    </select>
-    <label>Endpoint da API</label>
-    <input type="text" id="endpointInput" placeholder="https://...">
-    <label>Modelo</label>
-    <input type="text" id="modelInput" placeholder="Ex: gpt-4o-mini, llama-3.1-8b-instant, gemini-2.0-flash...">
-    <label>API key (fica só no seu navegador)</label>
-    <input type="password" id="apiKeyInput" placeholder="cole aqui, começa com sk- ou gsk- ...">
-    <div class="rowBtns">
-      <button class="btn" id="apiTestBtn">Testar API</button>
-      <button class="btn primary" id="apiSaveBtn">Salvar API</button>
-      <button class="btn danger" id="apiRemoveBtn">Remover key</button>
-    </div>
-    <p class="sub" id="apiStatusEl" style="margin-top:10px"></p>
-    <div class="rowBtns">
-      <button class="btn" id="configCloseBtn">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Memória -->
-<div class="modalBack" id="memoryModalBackEl" hidden>
-  <div class="modal">
-    <h3>🧠 Memória do Toubi</h3>
-    <p class="sub" id="memoryInfoEl"></p>
-    <input type="text" id="memorySearchInput" placeholder="Buscar no aprendizado...">
-    <div id="memoryListEl"></div>
-    <div class="rowBtns">
-      <button class="btn" id="memoryDownloadBtn">⬇ Baixar aprendizado</button>
-      <button class="btn" id="memoryImportBtn">⬆ Importar aprendizado</button>
-      <button class="btn danger" id="memoryClearBtn">Limpar memória</button>
-      <button class="btn" id="memoryCloseBtn">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Backup -->
-<div class="modalBack" id="backupModalBackEl" hidden>
-  <div class="modal">
-    <h3>💾 Backup e limpeza</h3>
-    <p class="sub">O backup deixa claro quem é quem: Você (usuário) e Toubi (AI). Dá para restaurar depois, mesmo fechando tudo. A limpeza serve para não pesar o navegador: apaga do navegador, mas se você baixou o backup antes, nada se perde.</p>
-    <div class="rowBtns">
-      <button class="btn" id="expChatJsonBtn">Chat atual em JSON</button>
-      <button class="btn" id="expChatTxtBtn">Chat atual em texto legível</button>
-    </div>
-    <div class="rowBtns">
-      <button class="btn" id="expAllBtn">Tudo em JSON (conversas + memória)</button>
-      <button class="btn" id="impAllBtn">Restaurar de um backup</button>
-    </div>
-    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
-    <p class="sub" id="storageInfoEl"></p>
-    <div class="rowBtns">
-      <button class="btn danger" id="wipeChatsBtn">Apagar conversas</button>
-      <button class="btn danger" id="wipeAllBtn">Limpar tudo (zerar Toubi)</button>
-      <button class="btn" id="backupCloseBtn">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<input type="file" id="fileInputEl" accept="application/json,.json,.txt" hidden>
-<div class="modalBack" id="modelModalBackEl" hidden>
-  <div class="modal">
-    <h3>🧩 Modelo neural local (grátis)</h3>
-    <p class="sub">Um modelo de verdade, o Qwen 0.5B, que roda dentro do seu navegador: offline, sem key, sem pagar nada. Na primeira vez baixa uns 500 MB e depois fica salvo. No seu note com 4GB ele responde devagar e usa bastante RAM: feche as outras abas antes de baixar. Dica: tudo que ele responde eu guardo na memória, então com o tempo ele usa mais a memória e menos o modelo. Dá para tirar da RAM e excluir o download quando quiser.</p>
-    <p class="sub" id="modelStatusEl">Modelo fora da RAM.</p>
-    <div class="progWrap"><div id="modelProgFillEl"></div></div>
-    <p class="sub" id="modelProgLabelEl"></p>
-    <label class="checkRow"><input type="checkbox" id="useLocalCheck"> Usar o modelo quando a memória não souber</label>
-    <div class="rowBtns">
-      <button class="btn primary" id="modelLoadBtn">Baixar e carregar</button>
-      <button class="btn" id="modelUnloadBtn">Tirar da RAM</button>
-      <button class="btn danger" id="modelDeleteBtn">Excluir download</button>
-    </div>
-    <div class="rowBtns">
-      <button class="btn" id="modelCloseBtn">Fechar</button>
-    </div>
-  </div>
-</div>
-<div id="toastEl"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept=".json" style="display:none">
 
 <script>
-(function(){
-"use strict";
-var $ = function(id){ return document.getElementById(id); };
-var msgsEl=$("msgsEl"), msgsInnerEl=$("msgsInnerEl"), chatListEl=$("chatListEl"),
-  msgInput=$("msgInput"), sendBtn=$("sendBtn"), micBtn=$("micBtn"),
-  chatTitleEl=$("chatTitleEl"), modeBadgeEl=$("modeBadgeEl"), statsEl=$("statsEl"),
-  newChatBtn=$("newChatBtn"), searchChatInput=$("searchChatInput"), menuBtn=$("menuBtn"),
-  toastEl=$("toastEl"), fileInputEl=$("fileInputEl");
+/* =========================================================
+   TOUBI — IA local com memória, aprendizado e API opcional
+   ========================================================= */
 
-var LS_CHATS="toubi_v1_chats", LS_MEM="toubi_v1_memory",
-    LS_PERS="toubi_v1_personality", LS_SET="toubi_v1_settings";
+/* ---------------- Utilidades ---------------- */
+const $  = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const uid  = () => (crypto.randomUUID ? crypto.randomUUID()
+                 : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+const now  = () => Date.now();
+const esc  = s => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-var DEFAULT_PERS = "Você é o Toubi, uma inteligência artificial amiga que mora no navegador. Fala português do Brasil, simples e direto, como um parceiro de estudos. É honesto: se não sabe algo, diz que ainda não aprendeu e pede para ser ensinado. Usa o que já aprendeu na memória. Respostas curtas e úteis, sem enrolar. Pode usar leve humor, mas sem exagero.";
-
-function uid(){ return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
-function nowISO(){ return new Date().toISOString(); }
-function fmtTime(iso){ try{ var d=new Date(iso); return d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}catch(e){return "";} }
-function toast(msg){ toastEl.textContent=msg; toastEl.style.display="block"; clearTimeout(toastEl._t); toastEl._t=setTimeout(function(){toastEl.style.display="none";},2600); }
-function download(name, text, mime){
-  var blob = new Blob([text],{type:mime||"application/json"});
-  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name;
-  document.body.appendChild(a); a.click();
-  setTimeout(function(){URL.revokeObjectURL(a.href); a.remove();},800);
+function toast(msg, ms = 2200){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), ms);
 }
-function loadJSON(key, fb){ try{ var v=localStorage.getItem(key); return v?JSON.parse(v):fb; }catch(e){ return fb; } }
-function saveJSON(key,val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){ toast("Armazenamento cheio. Faça backup e limpe."); } }
 
-/* ---------- estado ---------- */
-var chats = loadJSON(LS_CHATS, []);
-var memory = loadJSON(LS_MEM, null);
-var personality = localStorage.getItem(LS_PERS) || DEFAULT_PERS;
-var settings = loadJSON(LS_SET, {endpoint:"https://api.openai.com/v1/chat/completions", model:"gpt-4o-mini", apiKey:"", useFree:true, threshold:0.55, useLocal:false});
-if(!Array.isArray(memory)){
-  memory = [
-    {id:uid(), q:"quem é você", a:"Eu sou o Toubi, sua AI leve que aprende com você. Rodo até em PC fraco porque não baixo modelo gigante: uso memória + regras aqui no navegador, e se você ligar a IA gratuita ou uma API key, aprendo ainda mais rápido e guardo tudo.", source:"base", hits:0, createdAt:nowISO()},
-    {id:uid(), q:"qual é o seu nome", a:"Meu nome é Toubi. E você, como quer que eu te chame? Se me ensinar coisas com Ensinar, eu lembro nas próximas conversas.", source:"base", hits:0, createdAt:nowISO()},
-    {id:uid(), q:"o que você sabe fazer", a:"Por enquanto converso, lembro do que você me ensina, transcrevo sua voz em texto, deixo você mudar minha personalidade, faço backup das conversas e aceito API key para aprender mais rápido — tudo de forma leve para não pesar seu navegador.", source:"base", hits:0, createdAt:nowISO()},
-    {id:uid(), q:"como você aprende", a:"De 4 jeitos: 1) você me ensina no botão Ensinar, 2) eu guardo sozinho o que respondo via modelo local, API ou IA gratuita, 3) comando tipo: aprenda: sua pergunta = a resposta certa, 4) baixando o modelo neural local no menu da barra lateral. Depois respondo da memória sem gastar nada.", source:"base", hits:0, createdAt:nowISO()},
-    {id:uid(), q:"ajuda", a:"Posso ajudar assim: converse comigo, clique em Ensinar para me dar respostas certas, use o microfone para ditar, mude minha personalidade em Config, coloque API key se quiser respostas mais espertas, e faça backup em Backup e restaurar.", source:"base", hits:0, createdAt:nowISO()}
+function download(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+
+/* ---------------- Texto / normalização ---------------- */
+const STOP = new Set(('a o e de da do das dos que em um uma para com nao sim se os as por no na ao ' +
+  'mais como mas foi ser tem eu voce vc ele ela isso esse essa este esta me te lhe ja so ou ' +
+  'the and is to of a an it my eu mim sua seu minhas meus pelo pela').split(' '));
+
+function normalize(s){
+  return String(s).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+function tokens(s){
+  return normalize(s).split(' ')
+    .filter(w => w.length > 1 && !STOP.has(w));
+}
+
+/* ---------------- Persistência ---------------- */
+const K = {
+  chats : 'toubi.chats.v1',
+  mem   : 'toubi.mem.v1',
+  cfg   : 'toubi.cfg.v1',
+  active: 'toubi.active.v1'
+};
+const loadJSON = (k, fb) => { try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } };
+const saveJSON = (k, v) => { try{ localStorage.setItem(k, JSON.stringify(v)); } catch(e){ toast('Erro ao salvar: ' + e.message); } };
+
+const DEFAULT_PERSONALITY =
+`Você é a Toubi, uma IA pessoal criada pelo Tauan, rodando direto no navegador dele.
+Fale português do Brasil, de forma direta, calorosa e sem enrolação.
+Você é curiosa, gosta de aprender junto e admite quando não sabe.
+Quando não tiver certeza, diga o que sabe e o que falta.
+Você aprende com cada conversa e guarda o conhecimento de forma permanente.`;
+
+const state = {
+  chats : loadJSON(K.chats, []),
+  memory: loadJSON(K.mem, []),
+  config: Object.assign({
+    apiKey: '',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    threshold: 0.42,
+    personality: DEFAULT_PERSONALITY
+  }, loadJSON(K.cfg, {})),
+  activeId: loadJSON(K.active, null)
+};
+
+function persist(){
+  saveJSON(K.chats, state.chats);
+  saveJSON(K.mem, state.memory);
+  saveJSON(K.cfg, state.config);
+  saveJSON(K.active, state.activeId);
+}
+
+/* ---------------- Memória / aprendizado ---------------- */
+function addMemory(q, a, source = 'manual'){
+  q = String(q).trim(); a = String(a).trim();
+  if(!q || !a) return null;
+
+  const qn = normalize(q);
+  const existing = state.memory.find(m => normalize(m.q) === qn);
+  if(existing){
+    existing.a = a;
+    existing.ts = now();
+    existing.hits = (existing.hits || 0) + 1;
+    persist();
+    return existing;
+  }
+  const item = {id: uid(), q, a, ts: now(), hits: 0, source};
+  state.memory.push(item);
+  if(state.memory.length > 5000) state.memory.shift();
+  persist();
+  return item;
+}
+
+function bumpHit(id){
+  const m = state.memory.find(x => x.id === id);
+  if(m){ m.hits = (m.hits || 0) + 1; persist(); }
+}
+
+function scoreAgainst(qToks, qNorm, m){
+  const mToks = tokens(m.q);
+  if(!mToks.length) return 0;
+  const setA = new Set(qToks), setB = new Set(mToks);
+
+  let inter = 0;
+  for(const t of setA) if(setB.has(t)) inter++;
+
+  let s = inter / Math.sqrt(setA.size * setB.size);
+
+  // bônus por prefixo (ajuda com plurais/flexões)
+  let pref = 0;
+  for(const t of setA){
+    if(t.length >= 4 && [...setB].some(w => w.startsWith(t))) pref++;
+  }
+  s += 0.12 * (pref / setA.size);
+
+  const mNorm = normalize(m.q);
+  if(mNorm === qNorm) s = 1;
+  else if(mNorm.length > 8 && (qNorm.includes(mNorm) || mNorm.includes(qNorm)))
+    s = Math.max(s, 0.85);
+
+  // reforço: o que já foi usado antes ganha um tiquinho
+  s += Math.min(0.05, (m.hits || 0) * 0.004);
+
+  return Math.min(s, 1);
+}
+
+function searchMemory(query){
+  const qNorm = normalize(query);
+  const qToks = tokens(query);
+  if(!qToks.length) return null;
+
+  let best = null;
+  for(const m of state.memory){
+    const s = scoreAgainst(qToks, qNorm, m);
+    if(!best || s > best.score) best = {score: s, id: m.id, q: m.q, a: m.a};
+  }
+  return (best && best.score >= 0.2) ? best : null;
+}
+
+function topMemories(query, k = 5){
+  const qNorm = normalize(query);
+  const qToks = tokens(query);
+  if(!qToks.length) return [];
+  return state.memory
+    .map(m => ({m, s: scoreAgainst(qToks, qNorm, m)}))
+    .filter(x => x.s >= 0.2)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, k)
+    .map(x => x.m);
+}
+
+/* ---------------- Conhecimento inicial ---------------- */
+function seedIfEmpty(){
+  if(state.memory.length) return;
+  const seeds = [
+    ['oi', 'Oi! Eu sou a Toubi 👋 Ainda estou aprendendo, mas guardo tudo que você me ensina — mesmo sem internet.'],
+    ['olá', 'Olá! Pode falar comigo normalmente. Se eu não souber algo, me ensina que eu guardo.'],
+    ['bom dia', 'Bom dia! ☀️ Pronto pra aprender alguma coisa nova hoje?'],
+    ['boa noite', 'Boa noite! 🌙 Tô aqui se precisar.'],
+    ['quem é você', 'Eu sou a Toubi, sua IA local. Rodo no seu navegador, aprendo com você e guardo o conhecimento aqui no seu computador.'],
+    ['o que você é', 'Sou a Toubi: uma IA que aprende por memória local. Não sou um chatbot de respostas prontas — eu acumulo o que você me ensina.'],
+    ['tudo bem', 'Tudo certo por aqui! E com você?'],
+    ['obrigado', 'De nada! 🙂'],
+    ['obrigada', 'De nada! 🙂'],
+    ['ajuda', 'Você pode:\n• Conversar comigo normalmente\n• Me ensinar: `aprenda: pergunta | resposta`\n• Usar o microfone 🎤 pra falar\n• Colocar uma API key em ⚙️ Configurações pra eu aprender mais rápido\n• Baixar tudo que aprendi em 💾 Backup']
   ];
-  saveJSON(LS_MEM, memory);
+  for(const [q, a] of seeds) addMemory(q, a, 'seed');
 }
-var activeId = chats.length ? chats[0].id : null;
-if(!chats.length){
-  var c = {id:uid(), title:"Conversa 1", createdAt:nowISO(), messages:[
-    {role:"assistant", content:"Oi Eu sou o Toubi. Fui feito para rodar leve no seu note, sem modelo pesado.\n\nComo funciona aqui:\n- Converse normal. Se eu não souber, eu falo e você me ensina no botão Ensinar.\n- O que eu aprendo fica salvo e uso depois sem gastar tokens.\n- Microfone transcreve sua voz em texto.\n- Em Config dá para mudar minha personalidade e colocar API key para eu aprender mais rápido.\n- Em Backup você salva tudo e restaura quando quiser, e limpa para não pesar o navegador.\n\nManda a primeira mensagem ou clica em um exemplo lá embaixo.", time:nowISO(), via:"local"}
-  ]};
-  chats=[c]; activeId=c.id; saveJSON(LS_CHATS,chats);
-}
-function activeChat(){ for(var i=0;i<chats.length;i++) if(chats[i].id===activeId) return chats[i]; return null; }
-function persistChats(){ saveJSON(LS_CHATS,chats); renderStats(); }
-function persistMem(){ saveJSON(LS_MEM,memory); renderStats(); }
 
-/* ---------- cérebro local ---------- */
-var STOP = {"o":1,"a":1,"os":1,"as":1,"um":1,"uma":1,"de":1,"do":1,"da":1,"dos":1,"das":1,"em":1,"no":1,"na":1,"nos":1,"nas":1,"que":1,"e":1,"é":1,"eh":1,"com":1,"para":1,"pra":1,"por":1,"se":1,"me":1,"te":1,"voce":1,"você":1,"eu":1,"ele":1,"ela":1,"isso":1,"isto":1,"esse":1,"essa":1,"como":1,"qual":1,"quais":1,"quando":1,"onde":1,"porque":1,"pq":1,"ta":1,"tá":1,"to":1,"tou":1,"meu":1,"minha":1,"seu":1,"sua":1,"seus":1,"suas":1,"muito":1,"mais":1,"nao":1,"não":1,"sim":1,"oi":1};
-function norm(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim(); }
-function toks(s){ var n=norm(s).split(" ").filter(Boolean); var out=[]; for(var i=0;i<n.length;i++){ if(!STOP[n[i]]) out.push(n[i]); } return out.length?out:n; }
-function scoreQ(a,b){
-  var ta=toks(a), tb=toks(b);
-  if(!ta.length||!tb.length) return 0;
-  var sa={}, i, inter=0;
-  for(i=0;i<ta.length;i++) sa[ta[i]]=1;
-  for(i=0;i<tb.length;i++) if(sa[tb[i]]) inter++;
-  var union = ta.length+tb.length-inter;
-  var jacc = union? inter/union : 0;
-  var cover = inter/Math.min(ta.length,tb.length);
-  var na=norm(a), nb=norm(b), bonus=0;
-  if(na&&nb&&(na.indexOf(nb)>=0||nb.indexOf(na)>=0)) bonus=0.15;
-  return Math.min(1, 0.55*jacc + 0.45*cover + bonus);
-}
-function findBest(q, k){
-  var scored=[];
-  for(var i=0;i<memory.length;i++){ var s=scoreQ(q, memory[i].q); if(s>0.05) scored.push({m:memory[i], s:s}); }
-  scored.sort(function(x,y){return y.s-x.s;});
-  return scored.slice(0,k||3);
-}
-function smalltalk(q){
-  var n=" "+norm(q)+" ";
-  var has=function(){ for(var i=0;i<arguments.length;i++) if(n.indexOf(" "+arguments[i]+" ")>=0||n.indexOf(" "+arguments[i])===0) return true; return false; };
-  if(/^(oi|ola|opa|eai|bom dia|boa tarde|boa noite|fala)\b/.test(norm(q))) return "Oi O que vamos aprender hoje? Pode mandar pergunta, ditar no microfone ou me ensinar algo novo no botão Ensinar.";
-  if(n.indexOf("tudo bem")>=0||n.indexOf("como vai")>=0||n.indexOf("como voce esta")>=0) return "Tô bem, rodando levinho aqui. E você? Me conta o que precisa que eu já guardo na memória.";
-  if(n.indexOf("obrigad")>=0) return "Por nada. Se essa resposta foi boa, ela já está na minha memória para a próxima.";
-  if(n.indexOf("tchau")>=0||n.indexOf("ate mais")>=0||n.indexOf("ate logo")>=0) return "Até já. Nossa conversa fica salva, pode fechar tudo e voltar que eu lembro.";
-  if(n.indexOf("quem e voce")>=0||n.indexOf("se apresent")>=0) return "Eu sou o Toubi, sua AI leve que aprende com você. Não preciso de PC forte porque aprendo guardando o que você me ensina e reaproveitando, em vez de rodar modelo gigante.";
+/* ---------------- Respostas prontas (sem IA) ---------------- */
+function builtinAnswer(text){
+  const t = normalize(text);
+
+  if(/^(que horas|horas agora|hora agora|que hora)/.test(t))
+    return 'Agora são ' + new Date().toLocaleTimeString('pt-BR') + '.';
+
+  if(/^(que dia|data de hoje|hoje e que dia|qual a data)/.test(t))
+    return 'Hoje é ' + new Date().toLocaleDateString('pt-BR',
+      {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) + '.';
+
+  const raw = text.trim();
+  if(/\d/.test(raw) && /^[\d\s+\-*/().,%^]+$/.test(raw)){
+    try{
+      const expr = raw.replace(/\^/g, '**').replace(/,/g, '.');
+      if(/^[\d\s+\-*/().*]+$/.test(expr)){
+        const val = Function('"use strict";return (' + expr + ')')();
+        if(typeof val === 'number' && isFinite(val))
+          return raw + ' = ' + Number(val.toFixed(10));
+      }
+    }catch(e){ /* ignora */ }
+  }
   return null;
 }
-function teachCommand(q){
-  var m = q.match(/^(?:toubi[, ]+)?(?:aprenda|ensina| memorize|guarde)[:\s]+(.+)$/i);
+
+/* ---------------- Ensino via mensagem ---------------- */
+function parseTeach(text){
+  const m = text.match(/^\s*(?:aprenda|aprender|ensine|ensina|lembre|memorize|guarde)\b[:\s]+([\s\S]+)$/i);
   if(!m) return null;
-  var rest = m[1].trim();
-  var parts = rest.split(/\s*(=|=>|\/\/\/|\|)\s*/);
-  if(parts.length>=3 && parts[0].length>1 && parts[2].length>1){
-    return {q:parts[0].trim(), a:parts.slice(2).join(" ").trim()};
+  const rest = m[1].trim();
+
+  let parts = rest.split(/\s*(?:=>|\||->)\s*/);
+  if(parts.length < 2){
+    const i = rest.indexOf(' = ');
+    if(i > -1) parts = [rest.slice(0, i), rest.slice(i + 3)];
   }
-  return {needTeach:true, hint:rest};
+  if(parts.length < 2 || !parts[0].trim() || !parts[1].trim()) return {needFormat: true};
+  return {q: parts[0].trim(), a: parts.slice(1).join(' | ').trim()};
 }
 
-/* ---------- IA online (API key / gratuita) ---------- */
-function historyForApi(chat, n){
-  var msgs = chat.messages.slice(-(n||12));
-  return msgs.map(function(m){ return {role:m.role==="assistant"?"assistant":"user", content:m.content}; });
-}
-async function callApiKey(chat, userText){
-  var ctx = findBest(userText,3).map(function(x){return "Pergunta parecida: "+x.m.q+"\nResposta aprendida: "+x.m.a;}).join("\n\n");
-  var sys = personality + "\n\nUse a MEMÓRIA abaixo como prioridade. Se a memória já responde, responda igual ou melhor, sem inventar diferente.\n"+(ctx?("MEMÓRIA:\n"+ctx):"(memória vazia para essa pergunta)");
-  var body = {model:settings.model, messages:[{role:"system",content:sys}].concat(historyForApi(chat,12)), temperature:0.7};
-  var r = await fetch(settings.endpoint, {method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+settings.apiKey}, body:JSON.stringify(body)});
-  if(!r.ok){ var t=""; try{t=await r.text();}catch(e){} throw new Error("API "+r.status+": "+t.slice(0,220)); }
-  var j = await r.json();
-  var txt = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-  if(!txt) throw new Error("Resposta vazia da API.");
-  return txt.trim();
-}
-async function callFreeAi(chat, userText){
-  var ctx = findBest(userText,3).map(function(x){return "Q: "+x.m.q+" | A: "+x.m.a;}).join("\n");
-  var instr = personality + "\n\nHistórico recente:\n" + historyForApi(chat,8).map(function(m){return (m.role==="assistant"?"Toubi: ":"Você: ")+m.content;}).join("\n") +
-    "\n\nMemória aprendida (prioridade máxima, se servir use ela):\n"+(ctx||"(vazia)")+
-    "\n\nNova pergunta de Você: "+userText+"\nResponda como Toubi, curto e útil, em pt-BR. Se não souber de verdade, diga que ainda não aprendeu e peça para ser ensinado.";
-  var out = await root.generateText({instruction:instr});
-  return String(out).trim();
+/* ---------------- API (opcional) ---------------- */
+function apiReady(){
+  return !!(state.config.apiKey && state.config.baseUrl && state.config.model);
 }
 
-/* ---------- envio ---------- */
-var sending=false;
-async function sendMessage(text){
-  text=(text||"").trim();
-  if(!text||sending) return;
-  var chat=activeChat();
-  if(!chat){ newChat(); chat=activeChat(); }
-  if(chat.messages.length===1 && chat.messages[0].role==="assistant" && chat.title==="Conversa 1"){
-    chat.title = text.slice(0,32) + (text.length>32?"...":"");
-  } else if(chat.messages.length===0){
-    chat.title = text.slice(0,32) + (text.length>32?"...":"");
+function buildSystemPrompt(memories){
+  let s = state.config.personality || DEFAULT_PERSONALITY;
+  if(memories.length){
+    s += '\n\nConhecimento que você já aprendeu com este usuário (use quando for relevante, ' +
+         'não repita literalmente se não fizer sentido):\n' +
+         memories.map((m, i) => `${i + 1}. P: ${m.q}\n   R: ${m.a}`).join('\n');
   }
-  chat.messages.push({role:"user", content:text, time:nowISO()});
-  persistChats(); renderAll(); 
-  msgInput.value=""; autoGrow();
-  sending=true; sendBtn.disabled=true;
-  var typingId="t"+Date.now();
-  pushTyping(typingId);
-  try{
-    var cmd = teachCommand(text);
-    if(cmd && !cmd.needTeach){
-      teachSave(cmd.q, cmd.a, "comando");
-      replaceTyping(typingId, "Anotado. Aprendi: quando perguntarem "+cmd.q+", respondo com o que você me passou. Já está na memória e vou usar sem gastar tokens.", "memoria");
-    } else if(cmd && cmd.needTeach){
-      openTeach(cmd.hint||"", "");
-      replaceTyping(typingId, "Quase lá. Abri a tela de Ensinar para você completar a resposta certa. Depois disso eu respondo sozinho.", "local");
-    } else {
-      var st = smalltalk(text);
-      var best = findBest(text,1)[0];
-      var th = Number(settings.threshold)||0.55;
-      if(st && (!best || best.s < 0.8)){
-        replaceTyping(typingId, st, "local");
-      } else if(best && best.s >= th){
-        best.m.hits=(best.m.hits||0)+1; persistMem();
-        replaceTyping(typingId, best.m.a, "memoria", Math.round(best.s*100));
-      } else {
-        var done=false, lastErr="";
-        if(settings.useLocal && !done){
-          try{
-            var a0 = await callLocalModel(chat, text);
-            teachSave(text, a0, "modelo-local", true);
-            replaceTyping(typingId, a0, "neural"); done=true;
-          }catch(e){ lastErr=String(e.message||e).slice(0,160); }
-        }
-        if(settings.apiKey && !done){
-          try{
-            var a1 = await callApiKey(chat, text);
-            teachSave(text, a1, "api", true);
-            replaceTyping(typingId, a1, "api"); done=true;
-          }catch(e){ lastErr=String(e.message||e).slice(0,200); }
-        }
-        if(settings.useFree && !done){
-          try{
-            var a2 = await callFreeAi(chat, text);
-            teachSave(text, a2, "gratuita", true);
-            replaceTyping(typingId, a2, "gratuita"); done=true;
-          }catch(e){ lastErr=String(e.message||e).slice(0,160); }
-        }
-        if(!done){
-          var extra = lastErr? ("Detalhe: "+lastErr+"\n\n") : "";
-          var sug = settings.useLocal? "O modelo local não respondeu. " : "Dá para ligar o modelo neural local no menu da barra lateral, ou a IA gratuita em Config. ";
-          replaceTyping(typingId, "Ainda não aprendi isso. "+extra+sug+"Me ensina no botão Ensinar? Da próxima vez respondo da memória, sem precisar de nada.", "local");
-          openTeach(text, "");
-        }
-      }
-    }
-  }catch(e){
-    replaceTyping(typingId, "Deu erro na hora de responder: "+String(e.message||e).slice(0,300)+"\n\nSe foi API, confere endpoint, modelo e key em Config. Sua conversa está salva.", "local");
-  }
-  sending=false; sendBtn.disabled=false;
-  persistChats(); renderAll();
-  msgsEl.scrollTop=msgsEl.scrollHeight;
-}
-function pushTyping(id){
-  var chat=activeChat(); if(!chat) return;
-  chat.messages.push({role:"assistant", content:"__typing__", time:nowISO(), _tid:id});
-  persistChats(); renderMsgs();
-  msgsEl.scrollTop=msgsEl.scrollHeight;
-}
-function replaceTyping(id, text, via, conf){
-  var chat=activeChat(); if(!chat) return;
-  for(var i=0;i<chat.messages.length;i++){
-    var m=chat.messages[i];
-    if(m.content==="__typing__" && m._tid===id){ m.content=text; m.via=via; m.conf=conf; delete m._tid; break; }
-  }
-}
-function viaLabel(m){
-  if(m.via==="memoria") return {t:"🧠 da memória (0 tokens)"+(m.conf?" • "+m.conf+"%":""), c:"via mem"};
-  if(m.via==="api") return {t:"🔵 via API key (virou memória)", c:"via api"};
-  if(m.via==="gratuita") return {t:"🟣 via IA gratuita (virou memória)", c:"via free"};
-  if(m.via==="neural") return {t:"🧩 modelo local (0 tokens, offline, virou memória)", c:"via mem"};
-  return {t:"🟡 local", c:"via"};
+  return s;
 }
 
-/* ---------- memória ---------- */
-function teachSave(q,a,source,silent){
-  q=(q||"").trim(); a=(a||"").trim();
-  if(!q||!a){ toast("Escreve pergunta e resposta."); return false; }
-  var best=findBest(q,1)[0];
-  if(best && best.s>0.92){
-    best.m.a=a; best.m.source=source||best.m.source; best.m.updatedAt=nowISO(); persistMem(); renderMemoryList();
-    if(!silent) toast("Atualizei o que eu já sabia.");
-    return true;
-  }
-  memory.unshift({id:uid(), q:q, a:a, source:source||"ensinado", hits:0, createdAt:nowISO()});
-  persistMem(); renderMemoryList();
-  if(!silent) toast("Salvo na memória. Já vou usar sem gastar tokens.");
-  return true;
-}
+async function callAPI(history, memories){
+  const url = state.config.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+  const msgs = [{role:'system', content: buildSystemPrompt(memories)}]
+    .concat(history.slice(-20).map(m => ({role: m.role, content: m.content})));
 
-/* ---------- render ---------- */
-function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function renderAll(){ renderChatList(); renderMsgs(); renderStats(); renderBadge(); }
-function renderBadge(){
-  var n=memory.length, hasKey=!!settings.apiKey;
-  var pre = (typeof localPipe!=="undefined" && localPipe)? "🧩 neural • " : (settings.useLocal? "🧩 modelo • " : "");
-  var t = pre + (hasKey? "🔵 API + 🧠 "+n+" na memória" : (settings.useFree? "🟣 gratuita + 🧠 "+n+" na memória" : "🟡 local • 🧠 "+n));
-  modeBadgeEl.textContent=t;
-  modeBadgeEl.className = hasKey||settings.useFree ? "ok" : "";
-  modeBadgeEl.id="modeBadgeEl";
-}
-function renderStats(){
-  var kb=0; try{ kb=Math.round(((localStorage.getItem(LS_CHATS)||"").length+(localStorage.getItem(LS_MEM)||"").length)/1024);}catch(e){}
-  var totalMsgs=chats.reduce(function(s,c){return s+c.messages.length;},0);
-  statsEl.innerHTML="🧠 "+memory.length+" aprendidos • 💬 "+chats.length+" chats ("+totalMsgs+" msgs)<br>📦 "+kb+" KB no navegador";
-  var si=$("storageInfoEl"); if(si) si.textContent="Uso atual no navegador: cerca de "+kb+" KB. Tudo fica em localStorage, leve até para 4GB de RAM. Baixe o backup antes de limpar.";
-  var mi=$("memoryInfoEl"); if(mi) mi.textContent=memory.length+" itens guardados. Quando uma pergunta nova é parecida com algo daqui, respondo direto sem chamar API (economia de tokens).";
-}
-function renderChatList(){
-  var f=norm(searchChatInput.value||"");
-  chatListEl.innerHTML="";
-  chats.forEach(function(c){
-    if(f && norm(c.title).indexOf(f)<0) return;
-    var d=document.createElement("div");
-    d.className="chatItem"+(c.id===activeId?" active":"");
-    var t=document.createElement("div"); t.className="t"; t.textContent=c.title||"Sem título"; t.title="Abrir";
-    t.onclick=function(){ activeId=c.id; persistChats(); renderAll(); $("sideBarEl").classList.remove("open"); };
-    t.ondblclick=function(){ startRename(c); };
-    var rn=document.createElement("span"); rn.className="ic"; rn.textContent="✎"; rn.title="Renomear";
-    rn.onclick=function(e){ e.stopPropagation(); startRename(c); };
-    var del=document.createElement("span"); del.className="ic"; del.textContent="🗑"; del.title="Excluir";
-    del.onclick=function(e){ e.stopPropagation(); deleteChat(c.id); };
-    d.appendChild(t); d.appendChild(rn); d.appendChild(del);
-    chatListEl.appendChild(d);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + state.config.apiKey
+    },
+    body: JSON.stringify({
+      model: state.config.model,
+      temperature: 0.7,
+      messages: msgs
+    })
   });
-  if(!chatListEl.children.length){
-    var p=document.createElement("div"); p.style.cssText="color:var(--mut);font-size:12.5px;padding:10px;text-align:center";
-    p.textContent="Nenhum chat. Cria um novo acima."; chatListEl.appendChild(p);
+
+  if(!res.ok){
+    let detail = '';
+    try{ const j = await res.json(); detail = j.error?.message || JSON.stringify(j).slice(0,200); }
+    catch(e){ detail = res.status + ' ' + res.statusText; }
+    throw new Error(detail);
   }
+  const data = await res.json();
+  const out = data.choices?.[0]?.message?.content;
+  if(!out) throw new Error('Resposta vazia da API.');
+  return out.trim();
 }
-function startRename(c){
-  var v = prompt("Renomear chat:", c.title||"");
-  if(v===null) return;
-  v=v.trim().slice(0,60)||c.title;
-  c.title=v; persistChats(); renderAll();
-}
-function renderMsgs(){
-  var chat=activeChat();
-  msgsInnerEl.innerHTML="";
-  if(!chat){ chatTitleEl.textContent="Toubi"; return; }
-  chatTitleEl.textContent=chat.title||"Toubi";
-  if(!chat.messages.length){
-    msgsInnerEl.innerHTML='<div id="emptyEl"><h2>Oi, eu sou o Toubi</h2><p>Leve de propósito para PC fraco. Converse, me ensine, dite por voz.<br>Tudo que eu aprendo fica salvo e eu reuso sem gastar tokens.</p></div>';
-  }
-  chat.messages.forEach(function(m){
-    var row=document.createElement("div");
-    row.className="msg "+(m.role==="assistant"?"ai":"you");
-    var av=document.createElement("div"); av.className="avatar "+(m.role==="assistant"?"ai":"you");
-    av.textContent=m.role==="assistant"?"T":"V";
-    var bub=document.createElement("div"); bub.className="bubble";
-    if(m.content==="__typing__"){
-      bub.innerHTML='<span class="typingDots"><span></span><span></span><span></span></span> pensando... <span style="color:var(--mut);font-size:12px">(procurando na memória primeiro)</span>';
-    } else {
-      var who = m.role==="assistant" ? "Toubi (AI)" : "Você (usuário)";
-      var safe = esc(m.content);
-      bub.innerHTML='<div style="font-size:11px;color:var(--mut);margin-bottom:6px">'+who+' <span class="timeEl">• '+fmtTime(m.time)+'</span></div><div>'+safe.replace(/\n/g,"<br>")+'</div>';
-      if(m.role==="assistant"){
-        var meta=document.createElement("div"); meta.className="metaRow";
-        var v=viaLabel(m);
-        var s=document.createElement("span"); s.className=v.c; s.textContent=v.t;
-        meta.appendChild(s);
-        var hear=document.createElement("button"); hear.className="miniAct"; hear.textContent="🔊 ouvir";
-        hear.onclick=(function(txt){ return function(){ speak(txt); }; })(m.content);
-        var fix=document.createElement("button"); fix.className="miniAct"; fix.textContent="✎ ensinar melhor";
-        fix.onclick=(function(q){ return function(){
-          var lastQ=""; var ch=activeChat();
-          if(ch){ for(var i=ch.messages.length-1;i>=0;i--){ if(ch.messages[i].role==="user"){ lastQ=ch.messages[i].content; break; } } }
-          openTeach(lastQ||q||"", "");
-        }; })(m.content);
-        meta.appendChild(hear); meta.appendChild(fix);
-        bub.appendChild(meta);
-      }
+
+/* ---------------- Chats ---------------- */
+function activeChat(){
+  let c = state.chats.find(x => x.id === state.activeId);
+  if(!c){
+    c = state.chats[0];
+    if(!c){
+      c = newChatObj();
+      state.chats.push(c);
     }
-    row.appendChild(av); row.appendChild(bub);
-    msgsInnerEl.appendChild(row);
-  });
-  if(chat.messages.length<=1){
-    var sug=[["💡 o que você sabe fazer?","o que você sabe fazer"],["🧠 como você aprende?","como você aprende"],["🎤 como uso a voz?","como uso a voz"],["🔑 como funciona a API key?","como funciona a api key"]];
-    var box=document.createElement("div"); box.className="chips"; box.style.marginTop="6px";
-    sug.forEach(function(s){
-      var b=document.createElement("button"); b.className="chip"; b.textContent=s[0];
-      b.onclick=function(){ sendMessage(s[1]); };
-      box.appendChild(b);
-    });
-    msgsInnerEl.appendChild(box);
+    state.activeId = c.id;
   }
+  return c;
 }
-function newChat(){
-  var c={id:uid(), title:"Conversa "+(chats.length+1), createdAt:nowISO(), messages:[]};
-  chats.unshift(c); activeId=c.id; persistChats(); renderAll();
-  $("sideBarEl").classList.remove("open");
-  msgInput.focus();
+function newChatObj(){
+  return {id: uid(), title: 'Novo chat', createdAt: now(), updatedAt: now(), messages: []};
+}
+function createChat(){
+  const c = newChatObj();
+  state.chats.unshift(c);
+  state.activeId = c.id;
+  persist();
+  renderAll();
+  $('#input').focus();
 }
 function deleteChat(id){
-  var c=null; for(var i=0;i<chats.length;i++) if(chats[i].id===id) c=chats[i];
+  const c = state.chats.find(x => x.id === id);
   if(!c) return;
-  if(!confirm("Excluir \""+(c.title||"chat")+"\"? Isso apaga do navegador. Faça backup antes se quiser guardar.")) return;
-  chats=chats.filter(function(x){return x.id!==id;});
-  if(activeId===id) activeId = chats.length?chats[0].id:null;
-  if(!chats.length){ var nc={id:uid(), title:"Conversa 1", createdAt:nowISO(), messages:[]}; chats=[nc]; activeId=nc.id; }
-  persistChats(); renderAll();
+  if(c.messages.length && !confirm('Excluir o chat "' + c.title + '"? Isso não volta.')) return;
+  state.chats = state.chats.filter(x => x.id !== id);
+  if(state.activeId === id) state.activeId = state.chats[0]?.id || null;
+  persist(); renderAll();
+}
+function renameChat(id){
+  const c = state.chats.find(x => x.id === id);
+  if(!c) return;
+  const n = prompt('Novo nome do chat:', c.title);
+  if(n === null) return;
+  const t = n.trim();
+  if(!t) return;
+  c.title = t.slice(0, 60);
+  persist(); renderAll();
 }
 
-/* ---------- modelo neural local (grátis, roda no PC) ---------- */
-var LOCAL_MODEL_ID="onnx-community/Qwen2.5-0.5B-Instruct";
-var localPipe=null, localLoading=false;
-function setModelStatus(t){ var el=$("modelStatusEl"); if(el) el.textContent=t; }
-function setProg(f,label){ var b=$("modelProgFillEl"), l=$("modelProgLabelEl"); if(b) b.style.width=Math.round((f||0)*100)+"%"; if(l) l.textContent=label||""; }
-function updateModelButtons(){
-  var has=!!localPipe;
-  var lb=$("modelLoadBtn"); if(lb) lb.textContent = has? "Carregado na RAM" : (localLoading? "Baixando..." : "Baixar e carregar");
-  if(lb) lb.disabled = has||localLoading;
-  renderBadge(); renderStats();
-}
-async function ensureLocalModel(){
-  if(localPipe) return localPipe;
-  if(localLoading){ while(localLoading){ await new Promise(function(r){setTimeout(r,400);}); } if(!localPipe) throw new Error("carregamento cancelado"); return localPipe; }
-  localLoading=true; updateModelButtons();
-  try{
-    setModelStatus("Carregando biblioteca neural...");
-    var mod = await import("https://esm.sh/@huggingface/transformers@3");
-    var hasAdapter=false;
-    try{ if(navigator.gpu){ var ad=await navigator.gpu.requestAdapter(); hasAdapter=!!ad; } }catch(e){}
-    var modes = [];
-    if(hasAdapter) modes.push({dtype:"q4f16", device:"webgpu", msg:"Baixando modelo (400 a 500 MB, uma vez só). Depois fica salvo no navegador."});
-    modes.push({dtype:"int8", device:"wasm", msg:"Modo compatível (mais lento, mas funciona em qualquer PC). Baixando modelo, 500 MB uma vez só..."});
-    var lastErr=null;
-    for(var mi=0; mi<modes.length; mi++){
-      try{
-        setModelStatus(modes[mi].msg);
-        setProg(0,"");
-        localPipe = await mod.pipeline("text-generation", LOCAL_MODEL_ID, {
-          dtype: modes[mi].dtype,
-          device: modes[mi].device,
-          progress_callback: function(p){
-            if(!p) return;
-            if(p.status==="progress" && p.total){ var f=p.loaded/p.total; setProg(f, "Baixando: "+Math.round(p.loaded/1048576)+" de "+Math.round(p.total/1048576)+" MB"); modeBadgeEl.textContent="🧩 baixando modelo "+Math.round(f*100)+"%"; }
-            else if(p.status==="done"){ setProg(1, "Download pronto, preparando..."); }
-          }
-        });
-        lastErr=null; break;
-      }catch(e){ localPipe=null; lastErr=e; setModelStatus("Modo rápido falhou neste navegador, tentando modo compatível..."); }
-    }
-    if(!localPipe) throw lastErr;
-    setModelStatus("Modelo na RAM e pronto. Grátis, offline, sem key. Tudo que ele responde eu guardo na memória.");
-    setProg(1,"Pronto");
-  }catch(e){
-    localPipe=null;
-    setModelStatus("Não consegui carregar: "+String(e.message||e).slice(0,200));
-    throw e;
-  }finally{ localLoading=false; updateModelButtons(); }
-  return localPipe;
-}
-async function callLocalModel(chat, userText){
-  var pipe = await ensureLocalModel();
-  var ctx = findBest(userText,2).map(function(x){ return "Exemplo aprendido: "+x.m.q+" -> "+x.m.a; }).join("\n");
-  var sys = personality + (ctx? "\nO que você já aprendeu (prioridade):\n"+ctx : "");
-  var messages = [{role:"system", content:sys}].concat(historyForApi(chat,6));
-  var prompt;
-  try{ prompt = pipe.tokenizer.apply_chat_template(messages, {add_generation_prompt:true, tokenize:false}); }
-  catch(e){ prompt = "Sistema: "+sys+"\n"+historyForApi(chat,6).map(function(m){ return (m.role==="assistant"?"Assistente: ":"Usuario: ")+m.content; }).join("\n")+"\nAssistente:"; }
-  var out = await pipe(prompt, {max_new_tokens:110, do_sample:true, temperature:0.7, top_p:0.9, repetition_penalty:1.15});
-  var txt = String((out && out[0] && (out[0].generated_text || out[0].text)) || "");
-  if(txt.indexOf(prompt)===0) txt=txt.slice(prompt.length);
-  txt = txt.split("Usuario:").join(" ").split("Sistema:").join(" ").trim();
-  if(!txt) throw new Error("modelo voltou vazio, tenta de novo com pergunta curta");
-  return txt.slice(0,900);
-}
-async function unloadLocalModel(){
-  try{ if(localPipe && localPipe.dispose) await localPipe.dispose(); }catch(e){}
-  localPipe=null; setProg(0,"");
-  setModelStatus("Modelo fora da RAM, navegador leve de novo. O download continua salvo, é só carregar quando quiser.");
-  updateModelButtons(); toast("Modelo fora da RAM.");
-}
-async function deleteLocalModel(){
-  await unloadLocalModel();
-  var gone=0;
-  try{
-    var keys=await caches.keys();
-    for(var i=0;i<keys.length;i++){ if(/transformers|huggingface|onnx/i.test(keys[i])){ await caches.delete(keys[i]); gone++; } }
-  }catch(e){ setModelStatus("Não consegui abrir o cache: "+String(e.message||e).slice(0,120)); return; }
-  setModelStatus(gone? "Download apagado do navegador. Para usar de novo é só baixar outra vez." : "Nenhum download salvo para apagar.");
-  updateModelButtons(); renderStats();
-}
-function openModelModal(){
-  var c=$("useLocalCheck"); if(c) c.checked=!!settings.useLocal;
-  if(!localPipe && !localLoading) setModelStatus("Modelo fora da RAM. Baixa uma vez, usa offline para sempre, apaga quando quiser.");
-  setProg(localPipe?1:0, localPipe?"Pronto":"");
-  updateModelButtons();
-  openModal("modelModalBackEl");
-}
-/* ---------- voz ---------- */
-var rec=null, listening=false;
-function setupVoice(){
-  var SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ micBtn.title="Voz não suportada neste navegador. Usa Chrome ou Edge."; micBtn.style.opacity=".45"; return; }
-  rec=new SR(); rec.lang="pt-BR"; rec.interimResults=false; rec.maxAlternatives=1;
-  rec.onresult=function(e){
-    var txt=e.results[0][0].transcript;
-    msgInput.value=(msgInput.value?msgInput.value+" ":"")+txt;
-    autoGrow(); msgInput.focus();
-    toast("Voz transcrita. Confere e envia.");
-  };
-  rec.onend=function(){ listening=false; micBtn.classList.remove("listening"); };
-  rec.onerror=function(){ listening=false; micBtn.classList.remove("listening"); };
-  micBtn.onclick=function(){
-    if(listening){ try{rec.stop();}catch(e){} return; }
-    try{ rec.start(); listening=true; micBtn.classList.add("listening"); toast("Ouvindo... fala que eu transcrevo."); }
-    catch(e){ toast("Não consegui abrir o microfone."); }
-  };
-}
-function speak(text){
-  try{
-    speechSynthesis.cancel();
-    var u=new SpeechSynthesisUtterance(text.slice(0,400));
-    u.lang="pt-BR"; speechSynthesis.speak(u);
-  }catch(e){ toast("Áudio não suportado aqui."); }
-}
-
-/* ---------- modais ---------- */
-function openModal(id){ $(id).hidden=false; }
-function closeModal(id){ $(id).hidden=true; }
-["teachModalBackEl","configModalBackEl","memoryModalBackEl","backupModalBackEl","modelModalBackEl"].forEach(function(id){
-  $(id).addEventListener("click", function(e){ if(e.target===this) this.hidden=true; });
-});
-function openTeach(q,a){ $("teachQInput").value=q||""; $("teachAInput").value=a||""; openModal("teachModalBackEl"); setTimeout(function(){$("teachQInput").focus();},50); }
-function openConfig(){
-  $("personalityInput").value=personality;
-  $("freeAiSelect").value=settings.useFree?"on":"off";
-  $("thresholdSelect").value=String(settings.threshold||0.55);
-  $("endpointInput").value=settings.endpoint||"";
-  $("modelInput").value=settings.model||"";
-  $("apiKeyInput").value=settings.apiKey||"";
-  var eps=settings.endpoint||"";
-  var sel=$("presetSelect");
-  var found=false;
-  for(var i=0;i<sel.options.length;i++) if(sel.options[i].value===eps){ sel.value=eps; found=true; break; }
-  if(!found) sel.value="custom";
-  $("apiStatusEl").textContent = settings.apiKey? "API key salva no navegador. Quando a memória já souber, nem chamo a API.":"Sem API key: rodo na memória + IA gratuita (se ligada).";
-  openModal("configModalBackEl");
-}
-function renderMemoryList(){
-  var box=$("memoryListEl"); if(!box) return;
-  var f=norm($("memorySearchInput").value||"");
-  box.innerHTML="";
-  var list=memory.filter(function(m){ return !f || norm(m.q+" "+m.a).indexOf(f)>=0; });
-  if(!list.length){ box.innerHTML='<p class="sub">Nada aqui. Ensina o Toubi que aparece nesta lista.</p>'; return; }
-  list.slice(0,200).forEach(function(m){
-    var d=document.createElement("div"); d.className="memItem";
-    var q=document.createElement("div"); q.innerHTML="<b class='q'>P: </b>"+esc(m.q);
-    var a=document.createElement("div"); a.className="a"; a.textContent="R: "+m.a;
-    var meta=document.createElement("div"); meta.className="m";
-    meta.textContent=(m.source||"")+" • usado "+(m.hits||0)+"x • "+fmtTime(m.createdAt);
-    var del=document.createElement("button"); del.className="miniAct"; del.textContent="apagar"; del.style.marginTop="6px";
-    del.onclick=function(){ memory=memory.filter(function(x){return x.id!==m.id;}); persistMem(); renderMemoryList(); toast("Apagado da memória."); };
-    d.appendChild(q); d.appendChild(a); d.appendChild(meta); d.appendChild(del);
-    box.appendChild(d);
-  });
-}
-
-/* ---------- backup ---------- */
-function chatToText(c){
-  var out="Conversa: "+(c.title||"")+"\nExportado em: "+new Date().toLocaleString("pt-BR")+"\nPersonalidade do Toubi: "+personality+"\n"+"=".repeat(40)+"\n";
-  c.messages.forEach(function(m){
-    var who = m.role==="assistant" ? "Toubi (AI)" : "Você (usuário)";
-    out+="\n"+who+" ["+fmtTime(m.time)+"]:\n"+m.content+"\n";
-  });
-  return out;
-}
-function exportAll(){
-  download("toubi-backup-"+new Date().toISOString().slice(0,10)+".json", JSON.stringify({app:"Toubi", version:1, exportedAt:nowISO(), personality:personality, settings:{endpoint:settings.endpoint, model:settings.model, useFree:settings.useFree, threshold:settings.threshold}, chats:chats, memory:memory}, null, 2));
-  toast("Backup completo baixado.");
-}
-var importMode="all";
-function handleFile(file){
-  var r=new FileReader();
-  r.onload=function(){
-    try{
-      var txt=String(r.result||"");
-      var j=JSON.parse(txt);
-      if(importMode==="memory"){
-        var arr = Array.isArray(j)? j : j.memory;
-        if(!Array.isArray(arr)) throw new Error("Arquivo sem memória válida.");
-        var n=0;
-        arr.forEach(function(m){ if(m&&m.q&&m.a){ memory.unshift({id:uid(), q:String(m.q), a:String(m.a), source:m.source||"importado", hits:0, createdAt:nowISO()}); n++; }});
-        persistMem(); renderMemoryList(); toast(n+" itens importados para a memória.");
-      } else {
-        if(j.chats && j.memory){
-          if(confirm("Substituir tudo pelo backup? OK substitui, Cancelar mescla junto.")){
-            chats=j.chats; memory=j.memory; personality=j.personality||personality;
-            if(j.settings){ settings.endpoint=j.settings.endpoint||settings.endpoint; settings.model=j.settings.model||settings.model; settings.useFree=j.settings.useFree!==false; settings.threshold=j.settings.threshold||0.55; saveJSON(LS_SET,settings); }
-            localStorage.setItem(LS_PERS, personality);
-          } else {
-            var ids={}; chats.forEach(function(c){ids[c.id]=1;});
-            (j.chats||[]).forEach(function(c){ if(!ids[c.id]) chats.push(c); });
-            (j.memory||[]).forEach(function(m){ memory.unshift({id:uid(), q:m.q, a:m.a, source:"importado", hits:0, createdAt:nowISO()}); });
-          }
-          activeId=chats.length?chats[0].id:null;
-          persistChats(); persistMem(); renderAll();
-          toast("Backup restaurado. Conversa de volta.");
-        } else if(j.title && j.messages){
-          chats.unshift({id:uid(), title:j.title||"Restaurada", createdAt:nowISO(), messages:j.messages});
-          activeId=chats[0].id; persistChats(); renderAll(); toast("Chat restaurado.");
-        } else throw new Error("Backup não reconhecido.");
-      }
-    }catch(e){ toast("Não consegui ler esse arquivo: "+String(e.message||e).slice(0,160)); }
-  };
-  r.readAsText(file);
-}
-
-/* ---------- eventos ---------- */
-function autoGrow(){ msgInput.style.height="auto"; msgInput.style.height=Math.min(140,msgInput.scrollHeight)+"px"; }
-msgInput.addEventListener("input", autoGrow);
-msgInput.addEventListener("keydown", function(e){ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendMessage(msgInput.value); } });
-sendBtn.onclick=function(){ sendMessage(msgInput.value); };
-newChatBtn.onclick=newChat;
-menuBtn.onclick=function(){ $("sideBarEl").classList.toggle("open"); };
-searchChatInput.addEventListener("input", renderChatList);
-$("teachTopBtn").onclick=function(){ var ch=activeChat(); var lq=""; if(ch){ for(var i=ch.messages.length-1;i>=0;i--){ if(ch.messages[i].role==="user"){lq=ch.messages[i].content;break;} } } openTeach(lq,""); };
-$("teachSideBtn").onclick=function(){ openTeach("",""); };
-$("configTopBtn").onclick=openConfig;
-$("configSideBtn").onclick=openConfig;
-$("memorySideBtn").onclick=function(){ renderMemoryList(); openModal("memoryModalBackEl"); };
-$("backupSideBtn").onclick=function(){ renderStats(); openModal("backupModalBackEl"); };
-$("modelSideBtn").onclick=openModelModal;
-$("modelCloseBtn").onclick=function(){ closeModal("modelModalBackEl"); };
-$("modelLoadBtn").onclick=function(){ settings.useLocal=true; saveJSON(LS_SET,settings); var c=$("useLocalCheck"); if(c) c.checked=true; renderAll(); ensureLocalModel().catch(function(){}); };
-$("modelUnloadBtn").onclick=function(){ unloadLocalModel(); };
-$("modelDeleteBtn").onclick=function(){ if(confirm("Apagar o modelo baixado do navegador? Dá para baixar de novo depois.")) deleteLocalModel(); };
-$("useLocalCheck").onchange=function(){ settings.useLocal=this.checked; saveJSON(LS_SET,settings); renderAll(); if(this.checked) ensureLocalModel().catch(function(){}); };
-$("teachCancelBtn").onclick=function(){ closeModal("teachModalBackEl"); };
-$("teachSaveBtn").onclick=function(){
-  if(teachSave($("teachQInput").value, $("teachAInput").value, "ensinado")){
-    closeModal("teachModalBackEl"); $("teachQInput").value=""; $("teachAInput").value="";
+/* ---------------- Render ---------------- */
+function renderChatList(){
+  const el = $('#chatList');
+  el.innerHTML = '';
+  const ordered = [...state.chats].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  for(const c of ordered){
+    const d = document.createElement('div');
+    d.className = 'chat-item' + (c.id === state.activeId ? ' active' : '');
+    d.innerHTML = `
+      <span class="name">${esc(c.title || 'Novo chat')}</span>
+      <span class="acts">
+        <button class="mini" data-act="rename" title="Renomear">✏️</button>
+        <button class="mini" data-act="delete" title="Excluir">🗑</button>
+      </span>`;
+    d.addEventListener('click', e => {
+      const act = e.target.dataset?.act;
+      if(act === 'rename'){ e.stopPropagation(); renameChat(c.id); return; }
+      if(act === 'delete'){ e.stopPropagation(); deleteChat(c.id); return; }
+      state.activeId = c.id; persist(); renderAll();
+      closeSidebarMobile();
+    });
+    el.appendChild(d);
   }
-};
-$("personalitySaveBtn").onclick=function(){ personality=$("personalityInput").value.trim()||DEFAULT_PERS; localStorage.setItem(LS_PERS,personality); toast("Personalidade salva."); };
-$("personalityResetBtn").onclick=function(){ $("personalityInput").value=DEFAULT_PERS; personality=DEFAULT_PERS; localStorage.setItem(LS_PERS,personality); toast("Voltei ao padrão."); };
-$("presetSelect").onchange=function(){ if(this.value!=="custom") $("endpointInput").value=this.value; };
-$("apiSaveBtn").onclick=function(){
-  settings.endpoint=$("endpointInput").value.trim()||settings.endpoint;
-  settings.model=$("modelInput").value.trim()||settings.model;
-  settings.apiKey=$("apiKeyInput").value.trim();
-  settings.useFree=$("freeAiSelect").value==="on";
-  settings.threshold=Number($("thresholdSelect").value)||0.55;
-  saveJSON(LS_SET,settings); renderAll();
-  $("apiStatusEl").textContent=settings.apiKey?"API salva. Vou usar memória primeiro para economizar tokens.":"Salvo sem key.";
-  toast("Config salva.");
-};
-$("apiRemoveBtn").onclick=function(){ settings.apiKey=""; $("apiKeyInput").value=""; saveJSON(LS_SET,settings); renderAll(); $("apiStatusEl").textContent="Key removida. Continuo com o que aprendi na memória."; toast("Key removida. O aprendizado continua aqui."); };
-$("freeAiSelect").onchange=$("thresholdSelect").onchange=function(){ settings.useFree=$("freeAiSelect").value==="on"; settings.threshold=Number($("thresholdSelect").value)||0.55; saveJSON(LS_SET,settings); renderAll(); };
-$("apiTestBtn").onclick=async function(){
-  var k=$("apiKeyInput").value.trim(), ep=$("endpointInput").value.trim(), mo=$("modelInput").value.trim()||"gpt-4o-mini";
-  if(!k){ $("apiStatusEl").textContent="Cola a key primeiro."; return; }
-  $("apiStatusEl").textContent="Testando...";
-  try{
-    var r=await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+k},body:JSON.stringify({model:mo,messages:[{role:"user",content:"Responda só: ok Toubi funcionando"}],temperature:0})});
-    var t=await r.text();
-    $("apiStatusEl").textContent = r.ok? "Funcionou. Resposta: "+t.slice(0,180) : "Falhou "+r.status+": "+t.slice(0,220);
-  }catch(e){ $("apiStatusEl").textContent="Erro: "+String(e.message||e).slice(0,220); }
-};
-$("configCloseBtn").onclick=function(){ closeModal("configModalBackEl"); };
-$("memorySearchInput").addEventListener("input", renderMemoryList);
-$("memoryCloseBtn").onclick=function(){ closeModal("memoryModalBackEl"); };
-$("memoryDownloadBtn").onclick=function(){
-  download("toubi-aprendizado-"+new Date().toISOString().slice(0,10)+".json", JSON.stringify({app:"Toubi-aprendizado", exportedAt:nowISO(), count:memory.length, memory:memory},null,2));
-  toast("Aprendizado baixado. Guarda esse arquivo.");
-};
-$("memoryImportBtn").onclick=function(){ importMode="memory"; fileInputEl.value=""; fileInputEl.click(); };
-$("memoryClearBtn").onclick=function(){
-  if(!confirm("Apagar TUDO que o Toubi aprendeu? Baixe antes se quiser guardar. Conversas ficam.")) return;
-  memory=[]; persistMem(); renderMemoryList(); toast("Memória limpa. Leve de novo.");
-};
-$("expChatJsonBtn").onclick=function(){ var c=activeChat(); if(!c) return; download("toubi-chat-"+Date.now()+".json", JSON.stringify(c,null,2)); };
-$("expChatTxtBtn").onclick=function(){ var c=activeChat(); if(!c) return; download("toubi-chat-"+Date.now()+".txt", chatToText(c), "text/plain"); };
-$("expAllBtn").onclick=exportAll;
-$("impAllBtn").onclick=function(){ importMode="all"; fileInputEl.value=""; fileInputEl.click(); };
-fileInputEl.addEventListener("change", function(){ if(this.files&&this.files[0]) handleFile(this.files[0]); });
-$("backupCloseBtn").onclick=function(){ closeModal("backupModalBackEl"); };
-$("wipeChatsBtn").onclick=function(){
-  if(!confirm("Apagar TODAS as conversas do navegador? Faça backup antes.")) return;
-  chats=[]; var nc={id:uid(), title:"Conversa 1", createdAt:nowISO(), messages:[]}; chats=[nc]; activeId=nc.id;
-  persistChats(); renderAll(); toast("Conversas apagadas.");
-};
-$("wipeAllBtn").onclick=function(){
-  if(!confirm("LIMPAR TUDO? Apaga conversas, memória, personalidade e API do navegador. Baixe backup antes.")) return;
-  localStorage.removeItem(LS_CHATS); localStorage.removeItem(LS_MEM); localStorage.removeItem(LS_PERS); localStorage.removeItem(LS_SET);
-  location.reload();
-};
+}
 
-/* ---------- boot ---------- */
-setupVoice(); autoGrow(); renderAll();
-msgsEl.scrollTop=msgsEl.scrollHeight;
-window.Toubi = {
-  send:sendMessage, teach:teachSave,
-  stats:function(){ return {chats:chats.length, memory:memory.length}; }
-};
-})();
-</script>
+function renderMarkdown(text){
+  const blocks = [];
+  let s = esc(text);
 
-</body>
-</html>
+  // blocos de código
+  s = s.replace(/
