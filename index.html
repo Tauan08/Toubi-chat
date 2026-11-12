@@ -16,6 +16,10 @@
       <button id="restoreBtn" class="ghost">Restaurar ⬆</button>
       <button id="funcBtn" class="ghost">＋ Regras</button>
     </div>
+    <div class="sidefoot">
+      <button id="diagBtn" class="ghost">🔍 Diagnóstico</button>
+    </div>
+    <div id="diagPanel" hidden><div id="diagTxt" class="muted small"></div></div>
     <input id="restoreFile" type="file" accept=".json,application/json" hidden />
     <div id="funcPanel" hidden>
       <input id="ruleInput" type="text" placeholder="Nova regra ex: responde curto" />
@@ -125,7 +129,8 @@ const MODELS = [
   { id: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC", label: "Qwen 0.5B — leve + PT-BR (~400MB)", vision: false },
   { id: "Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC", label: "Qwen Coder 0.5B — programa (~400MB)", vision: false },
   { id: "SmolLM2-360M-Instruct-q4f16_1-MLC", label: "SmolLM2 360M — o mais leve (~350MB)", vision: false },
-  { id: "Phi-3.5-vision-instruct-q4f16_1-MLC", label: "Phi Visão — enxerga fotos, só PC forte (~2.5GB)", vision: true }
+  { id: "Phi-3.5-vision-instruct-q4f16_1-MLC", label: "Phi Visão — enxerga fotos, só PC forte (~2.5GB)", vision: true },
+  { id: "CPU-SmolLM2-135M", label: "Modo sem placa — CPU, funciona em tudo (~100MB, lento)", vision: false, cpu: true, ggufRepo: "QuantFactory/SmolLM2-135M-Instruct-GGUF", ggufFile: "SmolLM2-135M-Instruct.Q4_K_M.gguf" }
 ];
 const BASE_SYSTEM = "You are Toubi TNV, helpful assistant for Tauan. RULES: 1) ALWAYS respond in Brazilian Portuguese (pt-BR). 2) User is Tauan, you are Toubi TNV. 3) You CAN and MUST help with code (HTML/CSS/JS/Python/Java). Never refuse code. 4) Keep answers short unless code asked. 5) Never repeat same sentence. 6) When files are quoted as [Arquivo nome: ...], use their content to answer. 7) [Do seu caderno ...] is what Tauan taught you — treat it as truth, base your answer on it and say you learned it from his material.";
 const $ = id => document.getElementById(id);
@@ -265,15 +270,16 @@ $("menuBtn").onclick = () => $("side").classList.toggle("open");
 tempInput.oninput = () => { tempVal.textContent = tempInput.value; save(); };
 modelSel.onchange = async () => {
   save();
-  if (engine && loadedId !== modelSel.value) {
-    try { if (engine.unload) await engine.unload(); } catch (err9) {}
-    engine = null; loadedId = null; startBtn.disabled = false;
+  if ((engine || cpuWllama) && loadedId !== modelSel.value) {
+    try { if (engine && engine.unload) await engine.unload(); } catch (err9) {}
+    try { if (cpuWllama && cpuWllama.exit) await cpuWllama.exit(); } catch (err9b) {}
+    engine = null; cpuWllama = null; backend = null; loadedId = null; startBtn.disabled = false;
     loadWrap.hidden = false;
     loadTxt.textContent = "Modelo trocado. Clique Baixar e iniciar IA.";
   }
 };
 if (!navigator.gpu) compatEl.textContent = "Sem WebGPU — use Chrome/Edge atualizado.";
-else compatEl.textContent = "WebGPU OK (" + (navigator.hardwareConcurrency || "?") + " núcleos). Leves rodam no celular; 1.5B e Visão pedem PC.";
+else compatEl.textContent = "WebGPU OK (" + (navigator.hardwareConcurrency || "?") + " núcleos). Sem GPU de verdade? Use o Modo sem placa. 1.5B e Visão pedem PC.";
 
 function persistDraft() {
   const c = activeChat();
@@ -288,10 +294,36 @@ msgInput.addEventListener("input", persistDraft);
 
 // ---- engine ----
 let stopLoad = false;
+let backend = null;
+let cpuWllama = null;
 startBtn.onclick = async () => {
-  if (engine) return;
+  if (engine || cpuWllama) return;
   startBtn.disabled = true; loadWrap.hidden = false; loadBar.style.width = "0%"; loadTxt.textContent = "Baixando...";
   stopLoad = false;
+  if (currentModel().cpu) {
+    try {
+      const mod = await import("https://esm.sh/@wllama/wllama@3.13.0");
+      cpuWllama = new mod.Wllama({ default: "https://cdn.jsdelivr.net/npm/@wllama/wllama@3.13.0/esm/wasm/wllama.wasm" });
+      await cpuWllama.loadModelFromHF(
+        { repo: currentModel().ggufRepo, file: currentModel().ggufFile },
+        {
+          n_threads: Math.min(4, navigator.hardwareConcurrency || 2),
+          n_gpu_layers: 0,
+          progressCallback: (p) => {
+            if (stopLoad) return;
+            const pct = p && p.total ? Math.round((p.loaded / p.total) * 100) : 0;
+            loadBar.style.width = pct + "%";
+            loadTxt.textContent = "Baixando modo CPU... (" + pct + "%)";
+          }
+        }
+      );
+      if (stopLoad) return;
+      backend = "cpu"; loadedId = modelSel.value;
+      loadTxt.textContent = "Cérebro CPU pronto (lento, mas funciona sem placa). Pode conversar.";
+      loadBar.style.width = "100%";
+    } catch (errCpu) { console.error(errCpu); loadTxt.textContent = "Erro no modo CPU: " + (errCpu && errCpu.message ? errCpu.message : errCpu); startBtn.disabled = false; }
+    return;
+  }
   try {
     engine = await webllm.CreateMLCEngine(modelSel.value, {
       initProgressCallback: (p) => {
@@ -303,10 +335,36 @@ startBtn.onclick = async () => {
       logLevel: "SILENT"
     });
     if (stopLoad) return;
-    loadedId = modelSel.value;
+    backend = "gpu"; loadedId = modelSel.value;
     loadTxt.textContent = "Cérebro pronto (" + currentModel().label.split("—")[0].trim() + "). Pode conversar.";
     loadBar.style.width = "100%";
-  } catch (err12) { console.error(err12); loadTxt.textContent = "Erro: " + (err12 && err12.message ? err12.message : err12) + " Feche tudo e tente um modelo mais leve."; startBtn.disabled = false; }
+  } catch (err12) { console.error(err12); loadTxt.textContent = "Erro: " + (err12 && err12.message ? err12.message : err12) + " Feche tudo, tente um modelo mais leve — ou clique em 🔍 Diagnóstico, ou use o Modo sem placa."; startBtn.disabled = false; }
+};
+$("diagBtn").onclick = async () => {
+  const p = $("diagPanel");
+  p.hidden = !p.hidden;
+  if (p.hidden) return;
+  const L = [];
+  L.push("Página segura (https): " + (window.isSecureContext ? "sim" : "NÃO — sem https o WebGPU nem aparece"));
+  try { L.push("Navegador: " + navigator.userAgent.split(" ").slice(-2).join(" ")); } catch (errD0) {}
+  if (!navigator.gpu) {
+    L.push("navigator.gpu: NÃO existe — atualize o Chrome/Edge (113+) ou saia do app embutido (Facebook, etc).");
+  } else {
+    L.push("navigator.gpu: existe");
+    let a = null;
+    try { a = await navigator.gpu.requestAdapter(); } catch (errD1) { L.push("requestAdapter: erro " + errD1); }
+    if (!a) {
+      L.push("Adaptador: NÃO encontrado — por isso nenhum modelo WebGPU abre aqui. Causas comuns: celular com GPU bloqueada, app embutido/WebView, Firefox sem WebGPU, driver antigo, acesso remoto.");
+      L.push("Solução: Chrome atualizado, ou selecione o Modo sem placa que funciona sem GPU.");
+    } else {
+      let info = "";
+      try { if (a.info) info = " (" + [a.info.vendor, a.info.architecture, a.info.device, a.info.description].filter(Boolean).join(" / ") + ")"; } catch (errD2) {}
+      L.push("Adaptador: OK" + info);
+      try { const dv = await a.requestDevice(); L.push("Dispositivo: OK — WebGPU funcionando, pode usar qualquer modelo leve."); try { dv.destroy(); } catch (errD3) {} } catch (errD4) { L.push("Dispositivo: falhou (" + errD4 + ") — tente o Modo sem placa."); }
+    }
+  }
+  try { L.push("CPU: " + (navigator.hardwareConcurrency || "?") + " núcleos • página isolada: " + (window.crossOriginIsolated ? "sim" : "não (modo CPU fica mais lento, mas funciona)")); } catch (errD5) {}
+  $("diagTxt").innerHTML = L.map(x => "• " + x).join("<br>");
 };
 
 // ---- anexos ----
@@ -416,8 +474,9 @@ async function send() {
   const text = msgInput.value.trim();
   if ((!text && !pending.length) || generating) return;
   let c = activeChat(); if (!c) c = mkChat();
-  if (!engine) { loadWrap.hidden = false; loadTxt.textContent = "Carrega o cérebro primeiro (botão azul)."; return; }
+  if (!engine && !cpuWllama) { loadWrap.hidden = false; loadTxt.textContent = "Carrega o cérebro primeiro (botão azul)."; return; }
   generating = true; sendBtn.disabled = true; stopBtn.hidden = false; stopFlag = false;
+  const isCpuMode = backend === "cpu";
   const isVis = currentModel().vision;
   const imgs = pending.filter(p => p.kind === "image").slice(0, 2);
   const texts = pending.filter(p => p.kind !== "image");
@@ -431,7 +490,8 @@ async function send() {
   }
   if (imgs.length && !isVis) ctxStr += "[imagem anexada: " + imgs.map(i => i.name + " (" + i.w + "x" + i.h + ")").join(", ") + " — este modelo não enxerga fotos; troque para o modelo Phi Visão]\n";
   const kbHits = kbRetrieve(text + " " + ctxStr);
-  const kbCtx = kbHits.length ? "[Do seu caderno (" + kbHits.map(h => h.name).join(", ") + "):\n" + kbHits.map(h => h.ch).join("\n---\n").slice(0, 1200) + "]" : "";
+  const kbBudget = isCpuMode ? 600 : 1200;
+  const kbCtx = kbHits.length ? "[Do seu caderno (" + kbHits.map(h => h.name).join(", ") + "):\n" + kbHits.map(h => h.ch).join("\n---\n").slice(0, kbBudget) + "]" : "";
   const fullText = (ctxStr ? ctxStr + "\n" : "") + (kbCtx ? kbCtx + "\n" : "") + text;
   let userMsg;
   if (isVis && imgs.length) {
@@ -451,16 +511,26 @@ async function send() {
   aiEl.classList.add("typing");
   const t0 = performance.now(); let full = "";
   try {
-    let sendHistory = c.history.length > 13 ? [c.history[0]].concat(c.history.slice(-12)) : c.history.slice();
-    const keepIdx = sendHistory.length - 1;
-    sendHistory = stripOldImages(sendHistory, keepIdx);
-    const stream = await engine.chat.completions.create({ messages: sendHistory, temperature: parseFloat(tempInput.value), top_p: 0.9, frequency_penalty: 1.0, presence_penalty: 0.6, max_tokens: 600, stream: true });
-    for await (const chunk of stream) {
-      if (stopFlag) { try { await engine.interruptGenerate(); } catch (err17) {} break; }
-      const d = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].delta ? chunk.choices[0].delta.content || "" : "";
-      full += d; aiEl.textContent = full; chatEl.scrollTop = chatEl.scrollHeight;
+    if (!isCpuMode) {
+      let sendHistory = c.history.length > 13 ? [c.history[0]].concat(c.history.slice(-12)) : c.history.slice();
+      const keepIdx = sendHistory.length - 1;
+      sendHistory = stripOldImages(sendHistory, keepIdx);
+      const stream = await engine.chat.completions.create({ messages: sendHistory, temperature: parseFloat(tempInput.value), top_p: 0.9, frequency_penalty: 1.0, presence_penalty: 0.6, max_tokens: 600, stream: true });
+      for await (const chunk of stream) {
+        if (stopFlag) { try { await engine.interruptGenerate(); } catch (err17) {} break; }
+        const d = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].delta ? chunk.choices[0].delta.content || "" : "";
+        full += d; aiEl.textContent = full; chatEl.scrollTop = chatEl.scrollHeight;
+      }
+      aiEl.classList.remove("typing");
+    } else {
+      const cpuSys = { role: "system", content: "Você é Toubi TNV, assistente do Tauan. Responda SEMPRE em português brasileiro, curto (máx 5 linhas). Ajude com código HTML/CSS/JS. Nunca recuse código." + (extraRules.length ? " Regras extras: " + extraRules.join(" ") : "") };
+      const cpuBody = (c.history.length > 7 ? c.history.slice(-6) : c.history.slice(1)).filter(m => m.role !== "system");
+      const cpuHist = [cpuSys].concat(cpuBody).map(m => ({ role: m.role, content: msgText(m).slice(0, 900) }));
+      const out = await cpuWllama.createChatCompletion({ messages: cpuHist, max_tokens: 220, temperature: parseFloat(tempInput.value), top_p: 0.9 });
+      aiEl.classList.remove("typing");
+      if (stopFlag) { full = ""; }
+      else { full = (out && out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content ? out.choices[0].message.content : "").trim(); }
     }
-    aiEl.classList.remove("typing");
     if (!full) full = "(interrompido)";
     aiEl.textContent = full;
     const b = document.createElement("button");
@@ -486,7 +556,8 @@ $("wipeBtn").onclick = async () => {
   wipeArmed = false; $("wipeBtn").textContent = "Limpar modelo";
   if (generating) return;
   try { if (engine && engine.unload) await engine.unload(); } catch (err19) {}
-  engine = null; loadedId = null; startBtn.disabled = false;
+  try { if (cpuWllama && cpuWllama.exit) await cpuWllama.exit(); } catch (err19b) {}
+  engine = null; cpuWllama = null; backend = null; loadedId = null; startBtn.disabled = false;
   let n = 0;
   if ("caches" in window) {
     let ks = [];
