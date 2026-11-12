@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Toubi Chat — IA Local no Navegador</title>
+</head>
+<body>
+<div class="app">
+  <aside id="side">
+    <button id="newChatBtn">＋ Nova conversa</button>
+    <div id="chatList"></div>
+    <div class="sidefoot">
+      <button id="wipeBtn" class="ghost">Limpar modelo</button>
+      <button id="backupBtn" class="ghost">Backup ⬇</button>
+      <button id="restoreBtn" class="ghost">Restaurar ⬆</button>
+      <button id="funcBtn" class="ghost">＋ Regras</button>
+    </div>
+    <input id="restoreFile" type="file" accept=".json,application/json" hidden />
+    <div id="funcPanel" hidden>
+      <input id="ruleInput" type="text" placeholder="Nova regra ex: responde curto" />
+      <button id="addRuleBtn">Add</button>
+      <div id="customList" class="muted small"></div>
+    </div>
+    <div class="sidefoot">
+      <button id="kbBtn" class="ghost">📚 Ensinar</button>
+    </div>
+    <div id="kbPanel" hidden>
+      <label class="small"><input id="kbOn" type="checkbox" checked /> Usar caderno nas respostas</label>
+      <div class="row small"><button id="kbAddBtn">＋ Adicionar material (Java, PDF, código...)</button></div>
+      <input id="kbFile" type="file" multiple hidden />
+      <div id="kbList" class="muted small"></div>
+    </div>
+  </aside>
+  <main>
+    <header>
+      <button id="menuBtn" class="ghost">☰</button>
+      <div class="hdiv">
+        <b>Toubi Chat</b> <span class="muted small">local • sem API key</span>
+        <div id="compatEl" class="muted small">Verificando WebGPU...</div>
+        <select id="modelSel" class="small"></select>
+      </div>
+      <button id="startBtn">Baixar e iniciar IA</button>
+    </header>
+    <div id="loadWrap" hidden>
+      <div class="bar"><div id="loadBar"></div></div>
+      <div id="loadTxt" class="muted small">Iniciando...</div>
+    </div>
+    <div id="chatEl"></div>
+    <div id="composer">
+      <div id="attachPrev" class="achips" hidden></div>
+      <div class="crow">
+        <button id="attachBtn" class="ghost" title="Anexar arquivo (PDF, código, foto...)">📎</button>
+        <button id="micBtn" class="ghost" title="Falar em vez de digitar">🎤</button>
+        <input id="fileInput" type="file" multiple hidden />
+        <input id="msgInput" type="text" placeholder="Pergunte qualquer coisa..." autocomplete="off" />
+        <button id="sendBtn">Enviar</button>
+        <button id="stopBtn" hidden>Parar</button>
+      </div>
+      <div class="crow small">
+        <label>Temperatura <input id="tempInput" type="range" min="0" max="1.5" step="0.1" value="0.7" /> <span id="tempVal">0.7</span></label>
+        <span id="statEl" class="muted"></span>
+      </div>
+      <p class="muted small">Fecha YouTube e abas: modelo esperto usa ~1GB. Limpar modelo apaga o download. Microfone e narrador usam voz do navegador.</p>
+    </div>
+  </main>
+</div>
+
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; text-align: left; }
+  html { color-scheme: light dark; }
+  .app { display: flex; height: 100vh; max-width: 1100px; margin: 0 auto; }
+  aside { width: 260px; border-right: 1px solid #8885; padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  header { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #8885; }
+  .hdiv { flex: 1; min-width: 0; }
+  #modelSel { width: 100%; margin-top: 6px; padding: 8px; border-radius: 8px; border: 1px solid #888; }
+  #newChatBtn { padding: 10px; border-radius: 8px; border: 1px solid #888; background: transparent; cursor: pointer; }
+  #chatList { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .chatitem { display: flex; gap: 6px; align-items: center; padding: 8px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; }
+  .chatitem.active { border-color: #1f6feb; }
+  .chatitem span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chatitem button { border: 0; background: transparent; cursor: pointer; opacity: 0.6; }
+  .sidefoot { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ghost { background: transparent; border: 1px solid #888; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+  button.rec { border-color: red; color: red; }
+  #startBtn, #sendBtn { background: #1f6feb; color: white; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+  button:disabled { opacity: 0.5; }
+  .bar { height: 8px; border: 1px solid #888; border-radius: 99px; overflow: hidden; margin: 8px 12px 0; }
+  #loadBar { height: 100%; width: 0%; background: #1f6feb; }
+  #loadTxt { padding: 4px 12px; }
+  #chatEl { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 800px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+  .turn { display: flex; flex-direction: column; max-width: 88%; }
+  .turn.user { align-self: flex-end; align-items: flex-end; }
+  .turn.ai { align-self: flex-start; align-items: flex-start; }
+  .msg { padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+  .user .msg { background: #1f6feb; color: white; }
+  .ai .msg { background: #8883; }
+  .speak { border: 0; background: transparent; cursor: pointer; opacity: 0.65; font-size: 15px; padding: 2px 6px; }
+  .thumbrow { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+  .thumbrow img { width: 90px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid #888; }
+  .typing::after { content: "▊"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #composer { border-top: 1px solid #8885; padding: 10px 12px; }
+  .crow { display: flex; gap: 8px; align-items: center; max-width: 800px; margin: 0 auto; }
+  input[type="text"] { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #888; font-size: 15px; min-width: 0; }
+  .achips { display: flex; gap: 6px; flex-wrap: wrap; max-width: 800px; margin: 0 auto 8px; }
+  .chip { border: 1px solid #888; border-radius: 8px; padding: 4px 8px; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+  .chip button { border: 0; background: transparent; cursor: pointer; }
+  .chip img { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; }
+  .muted { opacity: 0.7; } .small { font-size: 13px; }
+  #menuBtn { display: none; }
+  @media (max-width: 700px) {
+    aside { position: fixed; z-index: 10; height: 100vh; background: Canvas; transform: translateX(-110%); transition: transform 0.2s; }
+    aside.open { transform: none; }
+    #menuBtn { display: block; }
+  }
+</style>
+
+<script type="module">
+import * as webllm from "https://esm.sh/@mlc-ai/web-llm@0.2.79";
+
+const MODELS = [
+  { id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC", label: "Qwen 1.5B — mais esperto (~950MB)", vision: false },
+  { id: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC", label: "Qwen 0.5B — leve + PT-BR (~400MB)", vision: false },
+  { id: "Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC", label: "Qwen Coder 0.5B — programa (~400MB)", vision: false },
+  { id: "SmolLM2-360M-Instruct-q4f16_1-MLC", label: "SmolLM2 360M — o mais leve (~350MB)", vision: false },
+  { id: "Phi-3.5-vision-instruct-q4f16_1-MLC", label: "Phi Visão — enxerga fotos, só PC forte (~2.5GB)", vision: true }
+];
+const BASE_SYSTEM = "You are Toubi TNV, helpful assistant for Tauan. RULES: 1) ALWAYS respond in Brazilian Portuguese (pt-BR). 2) User is Tauan, you are Toubi TNV. 3) You CAN and MUST help with code (HTML/CSS/JS/Python/Java). Never refuse code. 4) Keep answers short unless code asked. 5) Never repeat same sentence. 6) When files are quoted as [Arquivo nome: ...], use their content to answer. 7) [Do seu caderno ...] is what Tauan taught you — treat it as truth, base your answer on it and say you learned it from his material.";
+const $ = id => document.getElementById(id);
+const compatEl = $("compatEl"), modelSel = $("modelSel"), startBtn = $("startBtn");
+const loadWrap = $("loadWrap"), loadBar = $("loadBar"), loadTxt = $("loadTxt");
+const chatEl = $("chatEl"), msgInput = $("msgInput"), sendBtn = $("sendBtn"), stopBtn = $("stopBtn");
+const tempInput = $("tempInput"), tempVal = $("tempVal"), statEl = $("statEl");
+const chatList = $("chatList"), newChatBtn = $("newChatBtn");
+
+for (const m of MODELS) {
+  const o = document.createElement("option");
+  o.value = m.id; o.textContent = m.label;
+  modelSel.appendChild(o);
+}
+let savedModel = null;
+try { savedModel = localStorage.getItem("toubi_model"); } catch (err0) {}
+modelSel.value = (savedModel && MODELS.some(m => m.id === savedModel)) ? savedModel : MODELS[0].id;
+try { tempInput.value = localStorage.getItem("toubi_temp") || "0.7"; } catch (err1) {}
+tempVal.textContent = tempInput.value;
+function currentModel() { return MODELS.find(m => m.id === modelSel.value) || MODELS[0]; }
+
+let engine = null, loadedId = null, generating = false, stopFlag = false;
+let extraRules = [];
+try { extraRules = JSON.parse(localStorage.getItem("toubi_rules") || "[]"); } catch (err2) { extraRules = []; }
+function buildSystem() { return BASE_SYSTEM + (extraRules.length ? "\nExtra rules:\n- " + extraRules.join("\n- ") : ""); }
+
+let chats = [], activeId = null;
+try { chats = JSON.parse(localStorage.getItem("toubi_chats") || "[]"); } catch (err3) { chats = []; }
+try { activeId = localStorage.getItem("toubi_active"); } catch (err4) {}
+function save() {
+  try {
+    localStorage.setItem("toubi_chats", JSON.stringify(chats.slice(0, 30)));
+    if (activeId) localStorage.setItem("toubi_active", activeId);
+    localStorage.setItem("toubi_model", modelSel.value);
+    localStorage.setItem("toubi_temp", tempInput.value);
+  } catch (err5) {}
+}
+function activeChat() { return chats.find(c => c.id === activeId) || null; }
+function mkChat() {
+  const c = { id: "c" + Date.now().toString(36), title: "Nova conversa", history: [{ role: "system", content: buildSystem() }], updatedAt: Date.now() };
+  chats.unshift(c); activeId = c.id; save(); renderList(); renderMsgs();
+  msgInput.value = "";
+  if (window.innerWidth < 700) $("side").classList.remove("open");
+  return c;
+}
+function renderList() {
+  chatList.innerHTML = "";
+  for (const c of chats) {
+    const d = document.createElement("div");
+    d.className = "chatitem" + (c.id === activeId ? " active" : "");
+    const s = document.createElement("span"); s.textContent = c.title; s.title = c.title;
+    s.onclick = () => { persistDraft(); activeId = c.id; save(); renderList(); renderMsgs(); restoreDraft(); if (window.innerWidth < 700) $("side").classList.remove("open"); };
+    const x = document.createElement("button"); x.textContent = "✕"; x.title = "Excluir conversa";
+    x.onclick = () => {
+      chats = chats.filter(k => k.id !== c.id);
+      try { localStorage.removeItem("toubi_draft_" + c.id); } catch (err6) {}
+      if (activeId === c.id) activeId = chats.length ? chats[0].id : null;
+      if (!chats.length) mkChat(); else { save(); renderList(); renderMsgs(); restoreDraft(); }
+    };
+    d.appendChild(s); d.appendChild(x); chatList.appendChild(d);
+  }
+}
+function msgText(m) {
+  if (typeof m.content === "string") return m.content;
+  if (Array.isArray(m.content)) return m.content.filter(p => p.type === "text").map(p => p.text).join("\n");
+  return "";
+}
+function msgImages(m) {
+  if (!Array.isArray(m.content)) return [];
+  return m.content.filter(p => p.type === "image_url" && p.image_url && p.image_url.url).map(p => p.image_url.url);
+}
+function renderMsgs() {
+  chatEl.innerHTML = "";
+  const c = activeChat();
+  if (!c) return;
+  for (const m of c.history) {
+    if (m.role === "user") addMsg("user", msgText(m), msgImages(m));
+    else if (m.role === "assistant") addMsg("ai", msgText(m), []);
+  }
+}
+let speakingBtn = null;
+function speakText(text, btn) {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth) { toast("Narrador indisponível neste navegador."); return; }
+    if (synth.speaking || synth.pending) {
+      synth.cancel();
+      if (speakingBtn && speakingBtn !== btn) speakingBtn.textContent = "🔊";
+      if (speakingBtn === btn) { speakingBtn = null; btn.textContent = "🔊"; return; }
+    }
+    const u = new SpeechSynthesisUtterance(text.slice(0, 600));
+    u.lang = "pt-BR";
+    try {
+      const vs = synth.getVoices();
+      const v = vs.find(x => x.lang && x.lang.toLowerCase().indexOf("pt") === 0);
+      if (v) u.voice = v;
+    } catch (err7) {}
+    speakingBtn = btn; btn.textContent = "⏹";
+    u.onend = () => { btn.textContent = "🔊"; if (speakingBtn === btn) speakingBtn = null; };
+    u.onerror = () => { btn.textContent = "🔊"; if (speakingBtn === btn) speakingBtn = null; };
+    synth.speak(u);
+  } catch (err8) { toast("Narrador indisponível."); }
+}
+function addMsg(role, text, images) {
+  const turn = document.createElement("div");
+  turn.className = "turn " + (role === "user" ? "user" : "ai");
+  if (images && images.length) {
+    const tr = document.createElement("div");
+    tr.className = "thumbrow";
+    for (const src of images.slice(0, 4)) {
+      const im = document.createElement("img");
+      im.src = src;
+      tr.appendChild(im);
+    }
+    turn.appendChild(tr);
+  }
+  const d = document.createElement("div");
+  d.className = "msg";
+  d.textContent = text;
+  turn.appendChild(d);
+  if (role === "ai" && text && text !== "(interrompido)") {
+    const b = document.createElement("button");
+    b.className = "speak"; b.textContent = "🔊"; b.title = "Ouvir resposta";
+    b.onclick = () => speakText(text, b);
+    turn.appendChild(b);
+  }
+  chatEl.appendChild(turn);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return d;
+}
+function toast(t) { loadWrap.hidden = false; loadTxt.textContent = t; }
+if (!chats.length) mkChat(); else { if (!activeChat()) activeId = chats[0].id; renderList(); renderMsgs(); }
+restoreDraft();
+
+newChatBtn.onclick = () => { persistDraft(); mkChat(); };
+$("menuBtn").onclick = () => $("side").classList.toggle("open");
+tempInput.oninput = () => { tempVal.textContent = tempInput.value; save(); };
+modelSel.onchange = async () => {
+  save();
+  if (engine && loadedId !== modelSel.value) {
+    try { if (engine.unload) await engine.unload(); } catch (err9) {}
+    engine = null; loadedId = null; startBtn.disabled = false;
+    loadWrap.hidden = false;
+    loadTxt.textContent = "Modelo trocado. Clique Baixar e iniciar IA.";
+  }
+};
+if (!navigator.gpu) compatEl.textContent = "Sem WebGPU — use Chrome/Edge atualizado.";
+else compatEl.textContent = "WebGPU OK (" + (navigator.hardwareConcurrency || "?") + " núcleos). Leves rodam no celular; 1.5B e Visão pedem PC.";
+
+function persistDraft() {
+  const c = activeChat();
+  if (!c) return;
+  try { localStorage.setItem("toubi_draft_" + c.id, msgInput.value); } catch (err10) {}
+}
+function restoreDraft() {
+  const c = activeChat();
+  try { msgInput.value = c ? (localStorage.getItem("toubi_draft_" + c.id) || "") : ""; } catch (err11) { msgInput.value = ""; }
+}
+msgInput.addEventListener("input", persistDraft);
+
+// ---- engine ----
+let stopLoad = false;
+startBtn.onclick = async () => {
+  if (engine) return;
+  startBtn.disabled = true; loadWrap.hidden = false; loadBar.style.width = "0%"; loadTxt.textContent = "Baixando...";
+  stopLoad = false;
+  try {
+    engine = await webllm.CreateMLCEngine(modelSel.value, {
+      initProgressCallback: (p) => {
+        if (stopLoad) return;
+        const pct = Math.round((p.progress || 0) * 100);
+        loadBar.style.width = pct + "%";
+        loadTxt.textContent = (p.text || "") + " (" + pct + "%)";
+      },
+      logLevel: "SILENT"
+    });
+    if (stopLoad) return;
+    loadedId = modelSel.value;
+    loadTxt.textContent = "Cérebro pronto (" + currentModel().label.split("—")[0].trim() + "). Pode conversar.";
+    loadBar.style.width = "100%";
+  } catch (err12) { console.error(err12); loadTxt.textContent = "Erro: " + (err12 && err12.message ? err12.message : err12) + " Feche tudo e tente um modelo mais leve."; startBtn.disabled = false; }
+};
+
+// ---- anexos ----
+let pending = [];
+const fileInput = $("fileInput"), attachPrev = $("attachPrev");
+$("attachBtn").onclick = () => fileInput.click();
+fileInput.onchange = async () => {
+  const files = Array.from(fileInput.files || []);
+  for (const f of files) {
+    if (f.size > 15 * 1024 * 1024) { toast("Arquivo muito grande (limite 15MB): " + f.name); continue; }
+    try { await addFile(f); } catch (err13) { console.error(err13); toast("Não consegui ler: " + f.name); }
+  }
+  fileInput.value = "";
+  renderPending();
+};
+function downscaleImage(img, maxDim) {
+  const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * s)), h = Math.max(1, Math.round(img.height * s));
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  cv.getContext("2d").drawImage(img, 0, 0, w, h);
+  return { dataUrl: cv.toDataURL("image/jpeg", 0.8), w, h };
+}
+async function addFile(f) {
+  const ext = (f.name.split(".").pop() || "").toLowerCase();
+  const textExts = ["txt", "md", "markdown", "csv", "json", "js", "mjs", "ts", "html", "htm", "css", "py", "java", "c", "h", "cpp", "cs", "go", "rs", "php", "rb", "xml", "yml", "yaml", "ini", "log", "sh", "sql"];
+  if (f.type.indexOf("image/") === 0) {
+    const bmp = await createImageBitmap(f);
+    const cw = document.createElement("canvas");
+    const s = Math.min(1, 768 / Math.max(bmp.width, bmp.height));
+    cw.width = Math.max(1, Math.round(bmp.width * s)); cw.height = Math.max(1, Math.round(bmp.height * s));
+    cw.getContext("2d").drawImage(bmp, 0, 0, cw.width, cw.height);
+    if (bmp.close) bmp.close();
+    pending.push({ name: f.name, kind: "image", dataUrl: cw.toDataURL("image/jpeg", 0.8), w: cw.width, h: cw.height });
+  } else if (ext === "pdf" || f.type === "application/pdf") {
+    const buf = await f.arrayBuffer();
+    const pdfjs = await import("https://esm.sh/pdfjs-dist@4.2.67/build/pdf.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs";
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+    let t = "";
+    const n = Math.min(pdf.numPages, 8);
+    for (let p = 1; p <= n; p++) {
+      const pg = await pdf.getPage(p);
+      const tc = await pg.getTextContent();
+      t += tc.items.map(it => it.str).join(" ") + "\n";
+      if (t.length > 6000) break;
+    }
+    try { if (pdf.destroy) await pdf.destroy(); } catch (err14) {}
+    pending.push({ name: f.name, kind: "text", text: t.slice(0, 6000) || "(PDF sem texto extraível)" });
+  } else if (f.type.indexOf("text/") === 0 || textExts.indexOf(ext) >= 0 || f.type === "application/json") {
+    const t = await f.text();
+    pending.push({ name: f.name, kind: "text", text: t.slice(0, 8000) });
+  } else {
+    pending.push({ name: f.name, kind: "meta", text: "(tipo " + (f.type || ext || "desconhecido") + ", " + Math.round(f.size / 1024) + "KB — só consigo ler o nome, não o conteúdo)" });
+  }
+}
+function renderPending() {
+  attachPrev.innerHTML = "";
+  attachPrev.hidden = !pending.length;
+  pending.forEach((p, i) => {
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    if (p.kind === "image") {
+      const im = document.createElement("img");
+      im.src = p.dataUrl;
+      chip.appendChild(im);
+    }
+    const s = document.createElement("span");
+    s.textContent = p.name;
+    const x = document.createElement("button");
+    x.textContent = "✕";
+    x.onclick = () => { pending.splice(i, 1); renderPending(); };
+    chip.appendChild(s); chip.appendChild(x);
+    attachPrev.appendChild(chip);
+  });
+}
+
+// ---- microfone ----
+const micBtn = $("micBtn");
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+if (!SR) { micBtn.disabled = true; micBtn.title = "Sem ditado neste navegador (use Chrome)"; }
+micBtn.onclick = () => {
+  if (!SR) return;
+  if (listening && rec) { try { rec.stop(); } catch (err15) {} return; }
+  rec = new SR();
+  rec.lang = "pt-BR";
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  rec.onresult = (ev) => {
+    const t = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : "";
+    if (t) { msgInput.value = (msgInput.value ? msgInput.value + " " : "") + t; persistDraft(); msgInput.focus(); }
+  };
+  rec.onerror = (ev) => { toast("Microfone: " + (ev.error || "erro")); };
+  rec.onend = () => { listening = false; micBtn.classList.remove("rec"); };
+  try { rec.start(); listening = true; micBtn.classList.add("rec"); } catch (err16) { toast("Não abri o microfone."); }
+};
+
+// ---- conversa ----
+function stripOldImages(hist, keepIdx) {
+  return hist.map((m, i) => {
+    if (i !== keepIdx && Array.isArray(m.content)) return { role: m.role, content: "[foto anexada antes]" };
+    return m;
+  });
+}
+async function send() {
+  const text = msgInput.value.trim();
+  if ((!text && !pending.length) || generating) return;
+  let c = activeChat(); if (!c) c = mkChat();
+  if (!engine) { loadWrap.hidden = false; loadTxt.textContent = "Carrega o cérebro primeiro (botão azul)."; return; }
+  generating = true; sendBtn.disabled = true; stopBtn.hidden = false; stopFlag = false;
+  const isVis = currentModel().vision;
+  const imgs = pending.filter(p => p.kind === "image").slice(0, 2);
+  const texts = pending.filter(p => p.kind !== "image");
+  let ctxStr = "";
+  let budget = 2500;
+  for (const t of texts) {
+    const piece = "[Arquivo " + t.name + ":\n" + t.text.slice(0, budget) + "]";
+    budget -= piece.length;
+    ctxStr += piece + "\n";
+    if (budget <= 0) break;
+  }
+  if (imgs.length && !isVis) ctxStr += "[imagem anexada: " + imgs.map(i => i.name + " (" + i.w + "x" + i.h + ")").join(", ") + " — este modelo não enxerga fotos; troque para o modelo Phi Visão]\n";
+  const kbHits = kbRetrieve(text + " " + ctxStr);
+  const kbCtx = kbHits.length ? "[Do seu caderno (" + kbHits.map(h => h.name).join(", ") + "):\n" + kbHits.map(h => h.ch).join("\n---\n").slice(0, 1200) + "]" : "";
+  const fullText = (ctxStr ? ctxStr + "\n" : "") + (kbCtx ? kbCtx + "\n" : "") + text;
+  let userMsg;
+  if (isVis && imgs.length) {
+    userMsg = { role: "user", content: [{ type: "text", text: fullText || "Descreva a imagem." }].concat(imgs.map(i => ({ type: "image_url", image_url: { url: i.dataUrl } }))) };
+  } else {
+    userMsg = { role: "user", content: fullText };
+  }
+  addMsg("user", fullText || "(foto)", imgs.map(i => i.dataUrl));
+  msgInput.value = ""; persistDraft();
+  pending = []; renderPending();
+  c.history.push(userMsg);
+  const firstText = (typeof userMsg.content === "string" ? userMsg.content : fullText).slice(0, 32);
+  if (c.title === "Nova conversa" && (text || imgs.length)) { c.title = (text || ("Foto " + imgs[0].name)).slice(0, 32); renderList(); }
+  void firstText;
+  const aiEl = addMsg("ai", "", []);
+  const aiTurn = aiEl.parentElement;
+  aiEl.classList.add("typing");
+  const t0 = performance.now(); let full = "";
+  try {
+    let sendHistory = c.history.length > 13 ? [c.history[0]].concat(c.history.slice(-12)) : c.history.slice();
+    const keepIdx = sendHistory.length - 1;
+    sendHistory = stripOldImages(sendHistory, keepIdx);
+    const stream = await engine.chat.completions.create({ messages: sendHistory, temperature: parseFloat(tempInput.value), top_p: 0.9, frequency_penalty: 1.0, presence_penalty: 0.6, max_tokens: 600, stream: true });
+    for await (const chunk of stream) {
+      if (stopFlag) { try { await engine.interruptGenerate(); } catch (err17) {} break; }
+      const d = chunk && chunk.choices && chunk.choices[0] && chunk.choices[0].delta ? chunk.choices[0].delta.content || "" : "";
+      full += d; aiEl.textContent = full; chatEl.scrollTop = chatEl.scrollHeight;
+    }
+    aiEl.classList.remove("typing");
+    if (!full) full = "(interrompido)";
+    aiEl.textContent = full;
+    const b = document.createElement("button");
+    b.className = "speak"; b.textContent = "🔊"; b.title = "Ouvir resposta";
+    b.onclick = () => speakText(full, b);
+    aiTurn.appendChild(b);
+    c.history.push({ role: "assistant", content: full });
+    if (c.history.length > 25) c.history = [c.history[0]].concat(c.history.slice(-24));
+    c.updatedAt = Date.now(); save();
+    const secs = (performance.now() - t0) / 1000;
+    statEl.textContent = (secs > 0 ? secs.toFixed(1) + "s" : "") + (kbHits.length ? " 📚" + kbHits.length : "");
+  } catch (err18) { console.error(err18); aiEl.classList.remove("typing"); aiEl.textContent = "Erro: " + (err18 && err18.message ? err18.message : err18); }
+  generating = false; sendBtn.disabled = false; stopBtn.hidden = true; msgInput.focus();
+}
+sendBtn.onclick = send;
+msgInput.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+stopBtn.onclick = () => { stopFlag = true; };
+
+// ---- limpar / backup / regras ----
+let wipeArmed = false;
+$("wipeBtn").onclick = async () => {
+  if (!wipeArmed) { wipeArmed = true; $("wipeBtn").textContent = "Confirma? clica de novo"; setTimeout(() => { wipeArmed = false; $("wipeBtn").textContent = "Limpar modelo"; }, 5000); return; }
+  wipeArmed = false; $("wipeBtn").textContent = "Limpar modelo";
+  if (generating) return;
+  try { if (engine && engine.unload) await engine.unload(); } catch (err19) {}
+  engine = null; loadedId = null; startBtn.disabled = false;
+  let n = 0;
+  if ("caches" in window) {
+    let ks = [];
+    try { ks = await caches.keys(); } catch (err20) { ks = []; }
+    for (const k of ks) {
+      try { await caches.delete(k); n++; } catch (err21) {}
+    }
+  }
+  loadWrap.hidden = false; loadBar.style.width = "0%";
+  loadTxt.textContent = "Modelo apagado (" + n + " caches). Pra usar de novo clica Baixar e iniciar IA.";
+};
+$("backupBtn").onclick = () => {
+  const c = activeChat(); if (!c) return;
+  const blob = new Blob([JSON.stringify({ app: "toubi-chat", model: modelSel.value, exportedAt: new Date().toISOString(), title: c.title, history: c.history }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "toubi-" + c.title.replace(/[^a-z0-9]+/gi, "-").slice(0, 20) + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+$("restoreBtn").onclick = () => $("restoreFile").click();
+$("restoreFile").onchange = async () => {
+  const f = $("restoreFile").files ? $("restoreFile").files[0] : null;
+  if (!f) return;
+  try {
+    const obj = JSON.parse(await f.text());
+    const h = obj.history || obj;
+    const hist = h.filter(m => m && m.role && m.content).slice(0, 50);
+    let title = "Backup";
+    try { title = (obj.title || msgText(hist.find(m => m.role === "user") || { content: "Backup" })).slice(0, 32); } catch (err22) {}
+    const c = { id: "c" + Date.now().toString(36), title, history: hist.length && hist[0].role === "system" ? hist : [{ role: "system", content: buildSystem() }].concat(hist), updatedAt: Date.now() };
+    chats.unshift(c); activeId = c.id; save(); renderList(); renderMsgs(); restoreDraft();
+  } catch (err23) { toast("Backup inválido."); }
+  $("restoreFile").value = "";
+};
+$("funcBtn").onclick = () => { $("funcPanel").hidden = !$("funcPanel").hidden; renderRules(); };
+function renderRules() { $("customList").textContent = "Regras: " + (extraRules.length ? extraRules.join(" | ") : "nenhuma"); }
+$("addRuleBtn").onclick = () => {
+  const v = $("ruleInput").value.trim(); if (!v) return;
+  extraRules.push(v);
+  try { localStorage.setItem("toubi_rules", JSON.stringify(extraRules)); } catch (err24) {}
+  const c = activeChat(); if (c) c.history[0].content = buildSystem();
+  $("ruleInput").value = ""; renderRules(); save();
+};
+// ---- caderno: ensinar a IA com arquivos ----
+let kbDocs = [];
+try { kbDocs = JSON.parse(localStorage.getItem("toubi_kb") || "[]"); } catch (errKB0) { kbDocs = []; }
+kbDocs = kbDocs.filter(d => d && d.name && Array.isArray(d.chunks));
+let kbOn = true;
+try { kbOn = localStorage.getItem("toubi_kb_on") !== "0"; } catch (errKB1) {}
+function kbSave() {
+  try {
+    localStorage.setItem("toubi_kb", JSON.stringify(kbDocs));
+    localStorage.setItem("toubi_kb_on", kbOn ? "1" : "0");
+  } catch (errKB2) { toast("Caderno cheio — apague algum material."); }
+}
+function chunkText(t) {
+  const parts = t.split(/\n\s*\n|\n/);
+  const out = [];
+  let cur = "";
+  for (const p of parts) {
+    if ((cur + "\n" + p).length > 600) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = p;
+    } else { cur += "\n" + p; }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(x => x.length > 40).slice(0, 60);
+}
+function kbScore(ch, words) {
+  const lc = ch.toLowerCase();
+  let s = 0;
+  for (const w of words) {
+    if (w.length < 4) continue;
+    let idx = -1, c = 0;
+    while (true) {
+      idx = lc.indexOf(w, idx + 1);
+      if (idx < 0) break;
+      c++;
+      if (c >= 4) break;
+    }
+    s += Math.min(c, 4);
+  }
+  return s;
+}
+function kbRetrieve(q) {
+  if (!kbOn || !kbDocs.length) return [];
+  const words = q.toLowerCase().split(/[^a-zà-ÿ0-9_.]+/);
+  const scored = [];
+  for (const d of kbDocs) {
+    for (const ch of d.chunks) {
+      const s = kbScore(ch, words);
+      if (s > 0) scored.push({ s, ch, name: d.name });
+    }
+  }
+  scored.sort((a, b) => b.s - a.s);
+  return scored.slice(0, 2);
+}
+async function kbReadFile(f) {
+  const ext = (f.name.split(".").pop() || "").toLowerCase();
+  if (f.type.indexOf("image/") === 0) return { skip: "foto não entra no caderno (só texto, código ou PDF)" };
+  if (ext === "pdf" || f.type === "application/pdf") {
+    const buf = await f.arrayBuffer();
+    const pdfjs = await import("https://esm.sh/pdfjs-dist@4.2.67/build/pdf.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.2.67/build/pdf.worker.min.mjs";
+    const pdf = await pdfjs.getDocument({ data: buf }).promise;
+    let t = "";
+    const n = Math.min(pdf.numPages, 12);
+    for (let p = 1; p <= n; p++) {
+      const pg = await pdf.getPage(p);
+      const tc = await pg.getTextContent();
+      t += tc.items.map(it => it.str).join(" ") + "\n";
+      if (t.length > 60000) break;
+    }
+    try { if (pdf.destroy) await pdf.destroy(); } catch (errKB3) {}
+    return { text: t.slice(0, 60000) };
+  }
+  const t = await f.text();
+  return { text: t.slice(0, 60000) };
+}
+function renderKB() {
+  const el = $("kbList");
+  let total = 0;
+  for (const d of kbDocs) for (const ch of d.chunks) total += ch.length;
+  el.innerHTML = "Materiais: " + kbDocs.length + " • " + Math.round(total / 1024) + "KB guardados<br>";
+  kbDocs.forEach((d, i) => {
+    const row = document.createElement("div");
+    const s = document.createElement("span");
+    s.textContent = "📄 " + d.name + " (" + d.chunks.length + " trechos)";
+    const x = document.createElement("button");
+    x.textContent = "✕"; x.title = "Esquecer material";
+    x.onclick = () => { kbDocs.splice(i, 1); kbSave(); renderKB(); };
+    row.appendChild(s); row.appendChild(x);
+    el.appendChild(row);
+  });
+  $("kbOn").checked = kbOn;
+}
+$("kbBtn").onclick = () => { $("kbPanel").hidden = !$("kbPanel").hidden; renderKB(); };
+$("kbOn").onchange = () => { kbOn = $("kbOn").checked; kbSave(); };
+$("kbAddBtn").onclick = () => $("kbFile").click();
+$("kbFile").onchange = async () => {
+  const files = Array.from($("kbFile").files || []);
+  for (const f of files) {
+    if (f.size > 15 * 1024 * 1024) { toast("Muito grande (15MB): " + f.name); continue; }
+    try {
+      const r = await kbReadFile(f);
+      if (r.skip) { toast(r.skip + ": " + f.name); continue; }
+      const chunks = chunkText(r.text || "");
+      if (!chunks.length) { toast("Sem texto aproveitável: " + f.name); continue; }
+      kbDocs.push({ id: "k" + Date.now().toString(36) + Math.floor(Math.random() * 99), name: f.name.slice(0, 60), chunks, addedAt: Date.now() });
+    } catch (errKB4) { console.error(errKB4); toast("Não li: " + f.name); }
+  }
+  $("kbFile").value = "";
+  kbSave(); renderKB();
+  toast(kbDocs.length ? "Material guardado. Pergunte sobre ele no chat." : "Nada guardado.");
+};
+window._localAI = { getEngine: () => engine };
+</script>
+
+</body>
+</html>
