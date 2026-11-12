@@ -2,876 +2,228 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Toubi</title>
+<title>Rede Neural Real - Aprendizado do Zero</title>
+<style>
+  body { font-family: monospace; background: #0d0d0d; color: #00ff88; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; height: 95vh; }
+  h2 { margin: 0 0 5px 0; }
+  #info { font-size: 12px; color: #888; margin-bottom: 10px; }
+  #chat { width: 100%; max-width: 650px; flex: 1; background: #141414; border: 1px solid #2a2a2a; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; border-radius: 6px; }
+  .msg { padding: 8px 12px; border-radius: 4px; max-width: 85%; word-wrap: break-word; line-height: 1.4; }
+  .user { background: #1b3b2b; color: #fff; align-self: flex-end; }
+  .ai { background: #222; color: #00ff88; align-self: flex-start; border-left: 2px solid #00ff88; }
+  .sys { color: #ffaa00; font-size: 11px; align-self: center; text-align: center; }
+  #controls { width: 100%; max-width: 650px; display: flex; gap: 8px; margin-top: 10px; }
+  input { flex: 1; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff88; font-family: monospace; font-size: 14px; outline: none; }
+  button { padding: 10px 16px; background: #00ff88; color: #000; border: none; font-weight: bold; cursor: pointer; font-family: monospace; }
+  button:hover { background: #00cc6a; }
+</style>
 </head>
 <body>
-<style>
-:root{--bg:#0f1115;--bg2:#171a21;--bg3:#20242e;--border:#2a2f3a;--txt:#e8eaed;--muted:#9aa0aa;--accent:#10a37f;--danger:#e05555}
-*{box-sizing:border-box}
-html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;overflow:hidden;text-align:left}
-button{font:inherit}
-.app{display:flex;height:100dvh;overflow:hidden}
-.sidebar{width:264px;flex:0 0 264px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px;gap:8px}
-.brand{font-weight:800;font-size:20px;padding:8px 6px;letter-spacing:.5px}
-.brand span{color:var(--accent)}
-.brand small{display:block;font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0}
-.newchat{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--txt);cursor:pointer}
-.newchat:hover{background:var(--bg3)}
-.chat-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:2px}
-.chat-list::-webkit-scrollbar{width:8px}
-.chat-list::-webkit-scrollbar-thumb{background:#2f3542;border-radius:8px}
-.chat-item{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:8px;cursor:pointer;color:var(--muted);font-size:14px;user-select:none}
-.chat-item:hover{background:var(--bg3);color:var(--txt)}
-.chat-item.active{background:var(--bg3);color:var(--txt)}
-.chat-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chat-item .acts{display:none;gap:2px}
-.chat-item:hover .acts,.chat-item.active .acts{display:flex}
-.mini{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 5px;border-radius:5px;line-height:1}
-.mini:hover{background:#333a47;color:#fff}
-.side-foot{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--border);padding-top:8px}
-.side-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border-radius:8px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;text-align:left}
-.side-btn:hover{background:var(--bg3);color:var(--txt)}
-.main{flex:1;display:flex;flex-direction:column;min-width:0}
-.topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);flex:0 0 auto}
-.title{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
-.pill{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
-.pill.on{color:var(--accent);border-color:var(--accent)}
-.icon-btn{background:transparent;border:1px solid var(--border);color:var(--txt);width:36px;height:36px;border-radius:10px;cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
-.icon-btn:hover{background:var(--bg3)}
-.icon-btn.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1s infinite}
-@keyframes pulse{50%{opacity:.55}}
-#toggleSidebar{display:none}
-.messages{flex:1;overflow-y:auto;padding:22px 16px 8px;scroll-behavior:smooth}
-.messages::-webkit-scrollbar{width:10px}
-.messages::-webkit-scrollbar-thumb{background:#2f3542;border-radius:8px}
-.msg{max-width:820px;margin:0 auto 20px;display:flex;gap:12px;animation:fade .18s ease}
-@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.avatar{width:30px;height:30px;border-radius:9px;flex:0 0 30px;display:grid;place-items:center;font-size:12px;font-weight:800}
-.msg.user .avatar{background:#3b4a5f;color:#dbe6f5}
-.msg.assistant .avatar{background:var(--accent);color:#04201a}
-.bubble{flex:1;min-width:0;line-height:1.65;overflow-wrap:anywhere}
-.msg.user .bubble{color:#dfe6f0}
-.bubble pre{background:#0b0d12;border:1px solid var(--border);padding:10px 12px;border-radius:8px;overflow:auto;margin:8px 0}
-.bubble code{background:#0b0d12;padding:1px 5px;border-radius:4px;font-size:13px;font-family:ui-monospace,Consolas,monospace}
-.bubble pre code{background:none;padding:0}
-.bubble a{color:var(--accent)}
-.typing{display:flex;gap:5px;padding:6px 0}
-.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bounce 1.2s infinite}
-.typing i:nth-child(2){animation-delay:.15s}
-.typing i:nth-child(3){animation-delay:.3s}
-@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
-.welcome{max-width:760px;margin:8vh auto 0;text-align:center;color:var(--muted)}
-.welcome h1{font-size:30px;color:var(--txt);margin:0 0 8px}
-.welcome p{margin:0 0 18px;line-height:1.6}
-.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.chip{background:var(--bg2);border:1px solid var(--border);color:var(--txt);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:13px}
-.chip:hover{background:var(--bg3)}
-.composer-wrap{padding:8px 16px 18px;flex:0 0 auto}
-.composer{max-width:820px;margin:0 auto;display:flex;gap:6px;align-items:flex-end;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:7px 7px 7px 14px}
-.composer:focus-within{border-color:#3a4354}
-.composer textarea{flex:1;background:none;border:none;color:var(--txt);resize:none;outline:none;font:inherit;line-height:1.5;max-height:180px;padding:9px 0}
-.send{width:38px;height:38px;border-radius:11px;border:none;background:var(--accent);color:#04201a;font-weight:800;cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
-.send:disabled{opacity:.4;cursor:not-allowed}
-.hint{max-width:820px;margin:8px auto 0;font-size:11px;color:var(--muted);text-align:center}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:20px;z-index:50}
-.modal.hidden{display:none}
-.modal-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;width:min(640px,100%);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
-.modal-head{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
-.modal-head h3{margin:0;font-size:16px}
-.modal-head .mini{margin-left:auto;font-size:18px}
-.modal-body{padding:18px;overflow-y:auto}
-.field{margin-bottom:14px}
-.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-.field input[type=text],.field input[type=password],.field textarea,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--txt);padding:10px 12px;font:inherit;outline:none}
-.field input:focus,.field textarea:focus{border-color:var(--accent)}
-.field small{display:block;color:var(--muted);font-size:11.5px;margin-top:5px;line-height:1.5}
-.field textarea{resize:vertical;min-height:90px;line-height:1.5}
-.field input[type=range]{width:100%}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.btn{background:var(--accent);color:#04201a;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700;font-size:14px}
-.btn:hover{filter:brightness(1.08)}
-.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--txt);font-weight:500}
-.btn.ghost:hover{background:var(--bg3)}
-.btn.danger{background:var(--danger);color:#fff}
-.mem-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg)}
-.mem-q{font-size:13px;color:var(--muted);margin-bottom:4px}
-.mem-a{font-size:13.5px;line-height:1.5;white-space:pre-wrap}
-.mem-head{display:flex;gap:6px;align-items:center;margin-bottom:4px}
-.mem-head .mini{margin-left:auto}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2a3140;border:1px solid var(--border);color:var(--txt);padding:10px 18px;border-radius:10px;font-size:13px;z-index:99;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
-@media (max-width:760px){
-  #toggleSidebar{display:grid}
-  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:40;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 30px rgba(0,0,0,.6)}
-  .sidebar.open{transform:none}
-  .messages{padding-top:14px}
-  .welcome{margin-top:4vh}
-  .welcome h1{font-size:24px}
-}
-</style>
-<div class="app">
-  <aside class="sidebar" id="sidebar">
-    <div class="brand">Toubi<span>.</span><small>aprendendo junto com você</small></div>
-    <button class="newchat" id="newChatBtn" type="button">＋ Novo chat</button>
-    <div class="chat-list" id="chatList"></div>
-    <div class="side-foot">
-      <button class="side-btn" id="btnMemory" type="button">🧠 Memória (<span id="memCount">0</span>)</button>
-      <button class="side-btn" id="btnSettings" type="button">⚙️ Configurações</button>
-      <button class="side-btn" id="btnBackup" type="button">💾 Backup / Restaurar</button>
-    </div>
-  </aside>
-  <main class="main">
-    <header class="topbar">
-      <button class="icon-btn" id="toggleSidebar" type="button" title="Menu">☰</button>
-      <div class="title" id="chatTitle">Novo chat</div>
-      <span class="pill" id="statusPill">local</span>
-    </header>
-    <div class="messages" id="messages"></div>
-    <div class="composer-wrap">
-      <div class="composer">
-        <textarea id="input" rows="1" placeholder="Fale com a Toubi… (Enter envia, Shift+Enter quebra linha)"></textarea>
-        <button class="icon-btn" id="micBtn" type="button" title="Falar">🎤</button>
-        <button class="send" id="sendBtn" type="button" title="Enviar">➤</button>
-      </div>
-      <div class="hint">Ensine assim: <code>aprenda: pergunta | resposta</code></div>
-    </div>
-  </main>
-</div>
-<div class="modal hidden" id="modal">
-  <div class="modal-card">
-    <div class="modal-head">
-      <h3 id="modalTitle">Título</h3>
-      <button class="mini" id="modalClose" type="button">✕</button>
-    </div>
-    <div class="modal-body" id="modalBody"></div>
+
+  <h2>REDE NEURAL RECORRENTE (RNN) - ZERO PRÉ-PROGRAMAÇÃO</h2>
+  <div id="info">Épocas treinadas: 0 | Taxa de Erro: 100% | Neurônios Ocultos: 32</div>
+
+  <div id="chat">
+    <div class="msg sys">SISTEMA INICIALIZADO COM PESOS ALEATÓRIOS.<br>Eu sou uma rede neural vazia. Tudo que você escrever será usado para ajustar minhas sinapses matemáticas.<br>Dica: Quanto mais frases em português você enviar, mais rápido meus neurônios saem do ruído aleatório.</div>
   </div>
-</div>
-<div class="toast" id="toast"></div>
-<input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+
+  <div id="controls">
+    <input type="text" id="input" placeholder="Converse ou ensine frases em português..." autocomplete="off">
+    <button onclick="interagir()">Enviar & Treinar</button>
+  </div>
+
 <script>
-(function(){
-'use strict';
+  // Alfabeto base que a rede neural consegue enxergar
+  const alfabeto = " abcdefghijklmnopqrstuvwxyzáàâãéèêíóôõúç.,!?";
+  const vocabSize = alfabeto.length;
+  const hiddenSize = 32; // Quantidade de neurônios na camada oculta (leve para notebook básico)
+  const learningRate = 0.08;
+  let epocas = 0;
 
-/* ================= UTILS ================= */
-function $(s, el){ return (el || document).querySelector(s); }
-function $all(s, el){ return Array.prototype.slice.call((el || document).querySelectorAll(s)); }
-function uid(){
-  if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
-  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
-}
-function now(){ return Date.now(); }
-function esc(s){
-  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-  });
-}
-function toast(msg, ms){
-  var t = $('#toast');
-  if (!t) return;
-  t.textContent = String(msg);
-  t.classList.add('show');
-  clearTimeout(t._t);
-  t._t = setTimeout(function(){ t.classList.remove('show'); }, ms || 2200);
-}
-function download(filename, obj){
-  var blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-}
-
-/* ================= TEXT ================= */
-var STOP = {};
-'a o e de da do das dos que em um uma para com nao sim se os as por no na ao mais como mas foi ser tem eu voce vc ele ela isso esse essa este esta me te lhe ja so ou the and is to of a an it my sua seu minhas meus pelo pela'.split(' ').forEach(function(w){ STOP[w] = true; });
-
-function normalize(s){
-  return String(s || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ').trim();
-}
-function tokens(s){
-  return normalize(s).split(' ').filter(function(w){ return w.length > 1 && !STOP[w]; });
-}
-
-/* ================= STATE ================= */
-var K = { chats:'toubi.chats.v1', mem:'toubi.mem.v1', cfg:'toubi.cfg.v1', active:'toubi.active.v1' };
-function loadJSON(k, fb){ try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e){ return fb; } }
-function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ toast('Erro ao salvar: ' + e.message); } }
-
-var DEFAULT_PERSONALITY =
-'Você é a Toubi, uma IA pessoal criada pelo Tauan, rodando direto no navegador dele.\n' +
-'Fale português do Brasil, de forma direta, calorosa e sem enrolação.\n' +
-'Você é curiosa, gosta de aprender junto e admite quando não sabe.\n' +
-'Quando não tiver certeza, diga o que sabe e o que falta.\n' +
-'Você aprende com cada conversa e guarda o conhecimento de forma permanente.';
-
-var state = {
-  chats: loadJSON(K.chats, []),
-  memory: loadJSON(K.mem, []),
-  config: Object.assign({
-    apiKey:'', baseUrl:'https://api.openai.com/v1', model:'gpt-4o-mini',
-    threshold:0.42, personality: DEFAULT_PERSONALITY
-  }, loadJSON(K.cfg, {})),
-  activeId: loadJSON(K.active, null),
-  sending: false
-};
-
-function persist(){
-  saveJSON(K.chats, state.chats);
-  saveJSON(K.mem, state.memory);
-  saveJSON(K.cfg, state.config);
-  try { localStorage.setItem(K.active, JSON.stringify(state.activeId)); } catch(e){}
-}
-
-/* ================= MEMORY ================= */
-function addMemory(q, a, source){
-  q = String(q || '').trim(); a = String(a || '').trim();
-  if (!q || !a) return null;
-  var qn = normalize(q);
-  var found = null;
-  for (var i = 0; i < state.memory.length; i++){
-    if (normalize(state.memory[i].q) === qn){ found = state.memory[i]; break; }
+  // Inicializa matrizes de pesos sinápticos com valores aleatórios (cérebro recém-nascido)
+  function criarMatriz(linhas, colunas) {
+    return Array.from({ length: linhas }, () =>
+      Array.from({ length: colunas }, () => (Math.random() - 0.5) * 0.2)
+    );
   }
-  if (found){
-    found.a = a; found.ts = now();
-    found.hits = (found.hits || 0) + 1;
-    persist(); updateMemCount();
-    return found;
-  }
-  var item = {id: uid(), q:q, a:a, ts: now(), hits:0, source: source || 'manual'};
-  state.memory.push(item);
-  if (state.memory.length > 5000) state.memory.splice(0, state.memory.length - 5000);
-  persist(); updateMemCount();
-  return item;
-}
-function bumpHit(id){
-  for (var i = 0; i < state.memory.length; i++){
-    if (state.memory[i].id === id){ state.memory[i].hits = (state.memory[i].hits || 0) + 1; persist(); break; }
-  }
-}
-function scoreAgainst(qToks, qNorm, m){
-  var mToks = tokens(m.q);
-  if (!mToks.length || !qToks.length) return 0;
-  var setA = {}, setB = {}, i;
-  for (i = 0; i < qToks.length; i++) setA[qToks[i]] = true;
-  for (i = 0; i < mToks.length; i++) setB[mToks[i]] = true;
-  var inter = 0, sizeA = 0, key;
-  for (key in setA){ sizeA++; if (setB[key]) inter++; }
-  var sizeB = 0;
-  for (key in setB) sizeB++;
-  if (!sizeA || !sizeB) return 0;
-  var s = inter / Math.sqrt(sizeA * sizeB);
-  var pref = 0;
-  for (key in setA){
-    if (key.length >= 4){
-      for (var w in setB){ if (w.indexOf(key) === 0){ pref++; break; } }
-    }
-  }
-  s += 0.12 * (pref / sizeA);
-  var mNorm = normalize(m.q);
-  if (mNorm === qNorm) s = 1;
-  else if (mNorm.length > 8 && (qNorm.indexOf(mNorm) > -1 || mNorm.indexOf(qNorm) > -1)) s = Math.max(s, 0.85);
-  s += Math.min(0.05, (m.hits || 0) * 0.004);
-  return Math.min(s, 1);
-}
-function searchMemory(query){
-  var qNorm = normalize(query);
-  var qToks = tokens(query);
-  if (!qToks.length) return null;
-  var best = null;
-  for (var i = 0; i < state.memory.length; i++){
-    var m = state.memory[i];
-    var s = scoreAgainst(qToks, qNorm, m);
-    if (!best || s > best.score) best = {score:s, id:m.id, q:m.q, a:m.a};
-  }
-  return (best && best.score >= 0.2) ? best : null;
-}
-function topMemories(query, k){
-  k = k || 5;
-  var qNorm = normalize(query);
-  var qToks = tokens(query);
-  if (!qToks.length) return [];
-  var arr = [];
-  for (var i = 0; i < state.memory.length; i++){
-    var s = scoreAgainst(qToks, qNorm, state.memory[i]);
-    if (s >= 0.2) arr.push({m: state.memory[i], s: s});
-  }
-  arr.sort(function(a,b){ return b.s - a.s; });
-  return arr.slice(0, k).map(function(x){ return x.m; });
-}
-function updateMemCount(){
-  var el = $('#memCount');
-  if (el) el.textContent = String(state.memory.length);
-}
 
-/* ================= SEEDS ================= */
-function seedIfEmpty(){
-  if (state.memory.length) return;
-  var seeds = [
-    ['oi', 'Oi! Eu sou a Toubi. Ainda estou aprendendo, mas guardo tudo que você me ensina — mesmo sem internet.'],
-    ['olá', 'Olá! Pode falar comigo normalmente. Se eu não souber algo, me ensina que eu guardo.'],
-    ['bom dia', 'Bom dia! Pronto pra aprender alguma coisa nova hoje?'],
-    ['boa noite', 'Boa noite! Tô aqui se precisar.'],
-    ['quem é você', 'Eu sou a Toubi, sua IA local. Rodo no seu navegador, aprendo com você e guardo o conhecimento aqui no seu computador.'],
-    ['tudo bem', 'Tudo certo por aqui! E com você?'],
-    ['obrigado', 'De nada!'],
-    ['obrigada', 'De nada!'],
-    ['ajuda', 'Você pode:\n- Conversar comigo normalmente\n- Me ensinar: aprenda: pergunta | resposta\n- Usar o microfone pra falar\n- Colocar uma API key em Configurações pra eu responder sozinha\n- Baixar tudo que aprendi em Backup']
-  ];
-  for (var i = 0; i < seeds.length; i++){
-    state.memory.push({id: uid(), q: seeds[i][0], a: seeds[i][1], ts: now(), hits: 0, source: 'seed'});
-  }
-  persist(); updateMemCount();
-}
+  let Wxh = criarMatriz(hiddenSize, vocabSize);  // Pesos da entrada para neurônios ocultos
+  let Whh = criarMatriz(hiddenSize, hiddenSize); // Pesos de memória recorrente (contexto)
+  let Why = criarMatriz(vocabSize, hiddenSize);  // Pesos dos neurônios ocultos para saída
+  let bh = new Array(hiddenSize).fill(0);
+  let by = new Array(vocabSize).fill(0);
 
-/* ================= BUILTIN ================= */
-function builtinAnswer(text){
-  var t = normalize(text);
-  if (/^(que horas|horas agora|hora agora|que hora)/.test(t))
-    return 'Agora são ' + new Date().toLocaleTimeString('pt-BR') + '.';
-  if (/^(que dia|data de hoje|hoje e que dia|qual a data|que dia e hoje)/.test(t))
-    return 'Hoje é ' + new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) + '.';
-  var raw = String(text || '').trim();
-  if (/\d/.test(raw) && /^[\d\s+\-*/().,%^]+$/.test(raw)){
-    try {
-      var expr = raw.replace(/\^/g, '**').replace(/,/g, '.');
-      if (/^[\d\s+\-*/().*]+$/.test(expr)){
-        var val = Function('"use strict";return (' + expr + ')')();
-        if (typeof val === 'number' && isFinite(val))
-          return raw + ' = ' + Number(val.toFixed(10));
+  // Carrega cérebro salvo se existir
+  const salvo = localStorage.getItem('rnn_cerebro_pesos');
+  if (salvo) {
+    const dados = JSON.parse(salvo);
+    Wxh = dados.Wxh; Whh = dados.Whh; Why = dados.Why;
+    bh = dados.bh; by = dados.by; epocas = dados.epocas;
+  }
+
+  function softmax(arr) {
+    const max = Math.max(...arr);
+    const exps = arr.map(x => Math.exp(x - max));
+    const sum = exps.reduce((a, b) => a + b, 0);
+    return exps.map(x => x / sum);
+  }
+
+  // Passo para frente (Forward Pass) + Retropropagação do erro (Backpropagation)
+  function treinarSequencia(texto, repeticoes = 15) {
+    const indices = texto.toLowerCase().split('')
+      .map(c => alfabeto.indexOf(c))
+      .filter(i => i !== -1);
+
+    if (indices.length < 2) return 0;
+
+    let erroTotal = 0;
+
+    for (let rep = 0; rep < repeticoes; rep++) {
+      let hPrev = new Array(hiddenSize).fill(0);
+      let hs = { "-1": hPrev };
+      let ps = {};
+      erroTotal = 0;
+
+      // 1. Forward Pass (A rede tenta prever a próxima letra)
+      for (let t = 0; t < indices.length - 1; t++) {
+        const xIdx = indices[t];
+        const targetIdx = indices[t + 1];
+
+        let h = new Array(hiddenSize).fill(0);
+        for (let i = 0; i < hiddenSize; i++) {
+          let soma = bh[i] + Wxh[i][xIdx];
+          for (let j = 0; j < hiddenSize; j++) {
+            soma += Whh[i][j] * hs[t - 1][j];
+          }
+          h[i] = Math.tanh(soma); // Função de ativação neural
+        }
+        hs[t] = h;
+
+        let y = new Array(vocabSize).fill(0);
+        for (let i = 0; i < vocabSize; i++) {
+          let soma = by[i];
+          for (let j = 0; j < hiddenSize; j++) {
+            soma += Why[i][j] * h[j];
+          }
+          y[i] = soma;
+        }
+
+        ps[t] = softmax(y);
+        erroTotal += -Math.log(ps[t][targetIdx] + 1e-8);
       }
-    } catch(e){}
-  }
-  return null;
-}
 
-/* ================= TEACH ================= */
-function parseTeach(text){
-  var m = String(text || '').match(/^\s*(?:aprenda|aprender|ensine|ensina|lembre|memorize|guarde|aprende)\b[:\s]+([\s\S]+)$/i);
-  if (!m) return null;
-  var rest = m[1].trim();
-  var parts = rest.split(/\s*(?:=>|\||->)\s*/);
-  if (parts.length < 2){
-    var idx = rest.indexOf(' = ');
-    if (idx > -1) parts = [rest.slice(0, idx), rest.slice(idx + 3)];
-  }
-  if (parts.length < 2 || !parts[0].trim() || !parts[1].trim()) return {needFormat:true};
-  return {q: parts[0].trim(), a: parts.slice(1).join(' | ').trim()};
-}
+      // 2. Backpropagation (Ajusta os pesos matemáticos com base no erro)
+      let dhNext = new Array(hiddenSize).fill(0);
+      for (let t = indices.length - 2; t >= 0; t--) {
+        const xIdx = indices[t];
+        const targetIdx = indices[t + 1];
+        let dy = [...ps[t]];
+        dy[targetIdx] -= 1; // Gradiente do erro
 
-/* ================= API ================= */
-function apiReady(){ return !!(state.config.apiKey && state.config.baseUrl && state.config.model); }
-function buildSystemPrompt(memories){
-  var s = state.config.personality || DEFAULT_PERSONALITY;
-  if (memories && memories.length){
-    s += '\n\nConhecimento que você já aprendeu com este usuário (use quando for relevante):\n' +
-         memories.map(function(m, i){ return (i+1) + '. P: ' + m.q + '\n   R: ' + m.a; }).join('\n');
-  }
-  return s;
-}
-function callAPI(history, memories){
-  var url = String(state.config.baseUrl || '').replace(/\/+$/, '') + '/chat/completions';
-  var msgs = [{role:'system', content: buildSystemPrompt(memories)}].concat(
-    history.slice(-20).map(function(m){ return {role:m.role, content:m.content}; })
-  );
-  return fetch(url, {
-    method:'POST',
-    headers: {'Content-Type':'application/json', 'Authorization':'Bearer ' + state.config.apiKey},
-    body: JSON.stringify({model: state.config.model, temperature: 0.7, messages: msgs})
-  }).then(function(res){
-    if (!res.ok){
-      return res.text().then(function(t){
-        var detail = t.slice(0, 300);
-        try { var j = JSON.parse(t); if (j.error && j.error.message) detail = j.error.message; } catch(e){}
-        throw new Error(detail || (res.status + ' ' + res.statusText));
-      });
+        for (let i = 0; i < vocabSize; i++) {
+          by[i] -= learningRate * dy[i];
+          for (let j = 0; j < hiddenSize; j++) {
+            Why[i][j] -= learningRate * dy[i] * hs[t][j];
+          }
+        }
+
+        let dh = new Array(hiddenSize).fill(0);
+        for (let i = 0; i < hiddenSize; i++) {
+          let soma = dhNext[i];
+          for (let j = 0; j < vocabSize; j++) {
+            soma += Why[j][i] * dy[j];
+          }
+          dh[i] = soma * (1 - hs[t][i] * hs[t][i]); // Derivada da tanh
+        }
+
+        for (let i = 0; i < hiddenSize; i++) {
+          bh[i] -= learningRate * dh[i];
+          Wxh[i][xIdx] -= learningRate * dh[i];
+          for (let j = 0; j < hiddenSize; j++) {
+            Whh[i][j] -= learningRate * dh[i] * hs[t - 1][j];
+          }
+        }
+        dhNext = dh;
+      }
+      epocas++;
     }
-    return res.json();
-  }).then(function(data){
-    var out = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    if (!out) throw new Error('Resposta vazia da API.');
-    return String(out).trim();
-  });
-}
 
-/* ================= CHATS ================= */
-function newChatObj(){
-  return {id: uid(), title:'Novo chat', createdAt: now(), updatedAt: now(), messages: []};
-}
-function activeChat(){
-  var c = null, i;
-  for (i = 0; i < state.chats.length; i++){ if (state.chats[i].id === state.activeId){ c = state.chats[i]; break; } }
-  if (!c){
-    c = state.chats[0];
-    if (!c){ c = newChatObj(); state.chats.push(c); persist(); }
-    state.activeId = c.id;
+    localStorage.setItem('rnn_cerebro_pesos', JSON.stringify({ Wxh, Whh, Why, bh, by, epocas }));
+    return (erroTotal / indices.length).toFixed(2);
   }
-  return c;
-}
-function createChat(){
-  var c = newChatObj();
-  state.chats.unshift(c);
-  state.activeId = c.id;
-  persist();
-  renderAll();
-  var inp = $('#input'); if (inp) inp.focus();
-  closeSidebarMobile();
-}
-function deleteChat(id){
-  var c = null, i;
-  for (i = 0; i < state.chats.length; i++){ if (state.chats[i].id === id) c = state.chats[i]; }
-  if (!c) return;
-  if (c.messages.length && !window.confirm('Excluir o chat "' + c.title + '"? Isso não volta.')) return;
-  state.chats = state.chats.filter(function(x){ return x.id !== id; });
-  if (state.activeId === id) state.activeId = state.chats[0] ? state.chats[0].id : null;
-  persist(); renderAll();
-}
-function renameChat(id){
-  var c = null;
-  for (var i = 0; i < state.chats.length; i++){ if (state.chats[i].id === id) c = state.chats[i]; }
-  if (!c) return;
-  var n = window.prompt('Novo nome do chat:', c.title);
-  if (n === null) return;
-  var t = String(n).trim();
-  if (!t) return;
-  c.title = t.slice(0, 60);
-  persist(); renderAll();
-}
 
-/* ================= RENDER ================= */
-function renderChatList(){
-  var el = $('#chatList');
-  if (!el) return;
-  el.innerHTML = '';
-  var ordered = state.chats.slice().sort(function(a,b){ return (b.updatedAt || 0) - (a.updatedAt || 0); });
-  for (var i = 0; i < ordered.length; i++){
-    (function(c){
-      var d = document.createElement('div');
-      d.className = 'chat-item' + (c.id === state.activeId ? ' active' : '');
-      var name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = c.title || 'Novo chat';
-      var acts = document.createElement('span');
-      acts.className = 'acts';
-      var bR = document.createElement('button');
-      bR.className = 'mini'; bR.type = 'button'; bR.title = 'Renomear'; bR.textContent = '✏️';
-      bR.addEventListener('click', function(e){ e.stopPropagation(); renameChat(c.id); });
-      var bD = document.createElement('button');
-      bD.className = 'mini'; bD.type = 'button'; bD.title = 'Excluir'; bD.textContent = '🗑';
-      bD.addEventListener('click', function(e){ e.stopPropagation(); deleteChat(c.id); });
-      acts.appendChild(bR); acts.appendChild(bD);
-      d.appendChild(name); d.appendChild(acts);
-      d.addEventListener('click', function(){
-        state.activeId = c.id; persist(); renderAll();
-        closeSidebarMobile();
-      });
-      el.appendChild(d);
-    })(ordered[i]);
-  }
-}
+  // Gera resposta autônoma baseada apenas nos pesos neurais atuais
+  function gerarResposta(semente, tamanho = 45) {
+    let h = new Array(hiddenSize).fill(0);
+    let textoLimpo = semente.toLowerCase().split('').filter(c => alfabeto.includes(c));
+    let charIdx = textoLimpo.length > 0 ? alfabeto.indexOf(textoLimpo[textoLimpo.length - 1]) : 0;
+    let resultado = "";
 
-function renderMarkdown(text){
-  var raw = String(text == null ? '' : text);
-  var blocks = [];
-  var withPlaceholders = raw.replace(/```([\s\S]*?)```/g, function(m, code){
-    var clean = String(code || '').replace(/^\n/, '').replace(/\n$/, '');
-    blocks.push('<pre><code>' + esc(clean) + '</code></pre>');
-    return '\u0000' + (blocks.length - 1) + '\u0000';
-  });
-  var s = esc(withPlaceholders);
-  s = s.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
-  s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  s = s.replace(/\n/g, '<br>');
-  s = s.replace(/\u0000(\d+)\u0000/g, function(m, idx){ return blocks[Number(idx)] || ''; });
-  return s;
-}
+    for (let t = 0; t < tamanho; t++) {
+      let hNovo = new Array(hiddenSize).fill(0);
+      for (let i = 0; i < hiddenSize; i++) {
+        let soma = bh[i] + Wxh[i][charIdx];
+        for (let j = 0; j < hiddenSize; j++) {
+          soma += Whh[i][j] * h[j];
+        }
+        hNovo[i] = Math.tanh(soma);
+      }
+      h = hNovo;
 
-function scrollBottom(){
-  var box = $('#messages');
-  if (box) box.scrollTop = box.scrollHeight;
-}
+      let y = new Array(vocabSize).fill(0);
+      for (let i = 0; i < vocabSize; i++) {
+        let soma = by[i];
+        for (let j = 0; j < hiddenSize; j++) {
+          soma += Why[i][j] * h[j];
+        }
+        y[i] = soma;
+      }
 
-function renderMessages(){
-  var box = $('#messages');
-  if (!box) return;
-  box.innerHTML = '';
-  var chat = activeChat();
-  var titleEl = $('#chatTitle');
-  if (titleEl) titleEl.textContent = chat.title || 'Novo chat';
-  if (!chat.messages.length){
-    var w = document.createElement('div');
-    w.className = 'welcome';
-    w.innerHTML = '<h1>Oi, eu sou a Toubi.</h1>' +
-      '<p>Aprendo com você e guardo tudo aqui no navegador.<br>Me ensine com <code>aprenda: pergunta | resposta</code></p>';
-    var chips = document.createElement('div');
-    chips.className = 'chips';
-    var sug = ['Quem é você?', 'Que horas são?', 'O que você sabe fazer?', 'aprenda: meu nome é | Tauan'];
-    sug.forEach(function(q){
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'chip'; b.textContent = q;
-      b.addEventListener('click', function(){ sendText(q); });
-      chips.appendChild(b);
-    });
-    w.appendChild(chips);
-    box.appendChild(w);
-    return;
-  }
-  for (var i = 0; i < chat.messages.length; i++){
-    (function(m){
-      var row = document.createElement('div');
-      row.className = 'msg ' + (m.role === 'user' ? 'user' : 'assistant');
-      var av = document.createElement('div');
-      av.className = 'avatar';
-      av.textContent = m.role === 'user' ? 'EU' : 'T';
-      var bub = document.createElement('div');
-      bub.className = 'bubble';
-      bub.innerHTML = renderMarkdown(m.content);
-      row.appendChild(av); row.appendChild(bub);
-      box.appendChild(row);
-    })(chat.messages[i]);
-  }
-  scrollBottom();
-}
-
-function updateStatus(){
-  var pill = $('#statusPill');
-  if (!pill) return;
-  if (apiReady()){ pill.textContent = 'api + local'; pill.classList.add('on'); }
-  else { pill.textContent = 'local'; pill.classList.remove('on'); }
-}
-
-function renderAll(){
-  renderChatList();
-  renderMessages();
-  updateMemCount();
-  updateStatus();
-}
-
-/* ================= TYPING ================= */
-var typingEl = null;
-function showTyping(){
-  hideTyping();
-  var box = $('#messages');
-  if (!box) return;
-  var w = box.querySelector('.welcome');
-  if (w) w.remove();
-  typingEl = document.createElement('div');
-  typingEl.className = 'msg assistant';
-  typingEl.innerHTML = '<div class="avatar">T</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>';
-  box.appendChild(typingEl);
-  scrollBottom();
-}
-function hideTyping(){
-  if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-  typingEl = null;
-}
-
-/* ================= SEND ================= */
-function sendText(raw){
-  var text = String(raw == null ? '' : raw).trim();
-  if (!text || state.sending) return;
-  var input = $('#input');
-  var chat = activeChat();
-  chat.messages.push({role:'user', content: text, ts: now()});
-  if (!chat.title || chat.title === 'Novo chat'){
-    chat.title = text.slice(0, 42);
-  }
-  chat.updatedAt = now();
-  persist(); renderAll();
-  if (input){ input.value = ''; autoResize(); }
-  state.sending = true;
-  updateSendBtn();
-  showTyping();
-  handleReply(chat, text).then(function(reply){
-    hideTyping();
-    chat.messages.push({role:'assistant', content: reply, ts: now()});
-    chat.updatedAt = now();
-    persist();
-    state.sending = false;
-    updateSendBtn();
-    renderAll();
-    if (input) input.focus();
-  }).catch(function(err){
-    hideTyping();
-    state.sending = false;
-    updateSendBtn();
-    chat.messages.push({role:'assistant', content: 'Erro: ' + (err && err.message ? err.message : err), ts: now()});
-    persist(); renderAll();
-  });
-}
-
-function handleReply(chat, text){
-  var teach = parseTeach(text);
-  if (teach){
-    if (teach.needFormat){
-      return Promise.resolve('Para me ensinar, use o formato:\n`aprenda: pergunta | resposta`\n\nExemplo:\n`aprenda: qual meu jogo favorito? | Minecraft`');
+      const probs = softmax(y);
+      // Amostragem probabilística baseada nas ativações dos neurônios
+      let r = Math.random();
+      let acumulado = 0;
+      for (let i = 0; i < vocabSize; i++) {
+        acumulado += probs[i];
+        if (r <= acumulado) {
+          charIdx = i;
+          break;
+        }
+      }
+      resultado += alfabeto[charIdx];
     }
-    addMemory(teach.q, teach.a, 'manual');
-    return Promise.resolve('Aprendi! ✅\nQuando perguntarem "' + teach.q + '", vou responder:\n"' + teach.a + '"');
+    return resultado.trim() || "...";
   }
-  var b = builtinAnswer(text);
-  if (b) return Promise.resolve(b);
-  var best = searchMemory(text);
-  var thr = Number(state.config.threshold);
-  if (!(thr >= 0 && thr <= 1)) thr = 0.42;
-  if (best && best.score >= thr){
-    bumpHit(best.id);
-    return Promise.resolve(best.a);
+
+  const chat = document.getElementById('chat');
+  const input = document.getElementById('input');
+  const info = document.getElementById('info');
+
+  function addMsg(txt, cls) {
+    const d = document.createElement('div');
+    d.className = `msg ${cls}`;
+    d.innerText = txt;
+    chat.appendChild(d);
+    chat.scrollTop = chat.scrollHeight;
   }
-  if (apiReady()){
-    var mems = topMemories(text, 5);
-    var hist = chat.messages.slice(-20);
-    return callAPI(hist, mems).catch(function(err){
-      var msg = 'Erro na API: ' + err.message;
-      if (best) msg += '\n\nMas achei na memória local (' + Math.round(best.score * 100) + '%):\n' + best.a;
-      return msg;
-    });
+
+  function interagir() {
+    const txt = input.value.trim();
+    if (!txt) return;
+    input.value = '';
+    addMsg(txt, 'user');
+
+    setTimeout(() => {
+      // Treina a rede neural com a entrada do usuário (20 ciclos de ajuste por mensagem)
+      const perda = treinarSequencia(txt + " ", 20);
+      const resposta = gerarResposta(txt, 50);
+      addMsg(resposta, 'ai');
+      info.innerText = `Épocas treinadas: ${epocas} | Perda (Erro Matemático): ${perda} | Neurônios: ${hiddenSize}`;
+    }, 50);
   }
-  if (best){
-    bumpHit(best.id);
-    return Promise.resolve(best.a + '\n\n(confiança ' + Math.round(best.score * 100) + '% — se estiver errado, me corrija com "aprenda: ...")');
-  }
-  return Promise.resolve('Ainda não sei responder isso. 🤔\nMe ensina? Digite:\n`aprenda: ' + text + ' | sua resposta aqui`\n\nOu coloque uma API key em Configurações pra eu responder sozinha.');
-}
 
-function updateSendBtn(){
-  var btn = $('#sendBtn');
-  if (btn) btn.disabled = state.sending;
-}
-
-/* ================= MODAL ================= */
-function openModal(title, node){
-  var m = $('#modal');
-  $('#modalTitle').textContent = title;
-  var body = $('#modalBody');
-  body.innerHTML = '';
-  if (typeof node === 'string') body.innerHTML = node;
-  else if (node) body.appendChild(node);
-  m.classList.remove('hidden');
-}
-function closeModal(){
-  $('#modal').classList.add('hidden');
-}
-
-function openSettings(){
-  var wrap = document.createElement('div');
-  wrap.innerHTML =
-    '<div class="field"><label>Base URL (OpenAI-compatível)</label><input type="text" id="fBase" value="' + esc(state.config.baseUrl) + '"><small>Ex: https://api.openai.com/v1 — funciona com OpenAI, Groq, OpenRouter, LM Studio local, etc.</small></div>' +
-    '<div class="field"><label>API Key (opcional — sem ela eu rodo 100% local)</label><input type="password" id="fKey" value="' + esc(state.config.apiKey) + '" placeholder="sk-..."><small>Fica salva só no seu navegador.</small></div>' +
-    '<div class="field"><label>Modelo</label><input type="text" id="fModel" value="' + esc(state.config.model) + '"></div>' +
-    '<div class="field"><label>Limiar de confiança da memória: <span id="thrVal">' + esc(String(state.config.threshold)) + '</span></label><input type="range" id="fThr" min="0.2" max="0.9" step="0.01" value="' + esc(String(state.config.threshold)) + '"><small>Quanto maior, mais exigente eu sou pra usar a memória. Padrão 0.42.</small></div>' +
-    '<div class="field"><label>Personalidade</label><textarea id="fPers">' + esc(state.config.personality) + '</textarea></div>' +
-    '<div class="row"><button class="btn" id="saveCfg" type="button">Salvar</button><button class="btn ghost" id="cancelCfg" type="button">Fechar</button></div>';
-  openModal('Configurações', wrap);
-  $('#fThr').addEventListener('input', function(e){ $('#thrVal').textContent = e.target.value; });
-  $('#saveCfg').addEventListener('click', function(){
-    state.config.baseUrl = $('#fBase').value.trim() || 'https://api.openai.com/v1';
-    state.config.apiKey = $('#fKey').value.trim();
-    state.config.model = $('#fModel').value.trim() || 'gpt-4o-mini';
-    state.config.threshold = parseFloat($('#fThr').value) || 0.42;
-    state.config.personality = $('#fPers').value;
-    persist(); updateStatus(); closeModal();
-    toast('Configurações salvas!');
-  });
-  $('#cancelCfg').addEventListener('click', closeModal);
-}
-
-function openMemory(){
-  var wrap = document.createElement('div');
-  var search = document.createElement('div');
-  search.className = 'field';
-  search.innerHTML = '<label>Buscar na memória</label><input type="text" id="memSearch" placeholder="digite pra filtrar...">';
-  var list = document.createElement('div');
-  list.id = 'memList';
-  var add = document.createElement('div');
-  add.innerHTML = '<div class="field"><label>Ensinar novo (pergunta | resposta)</label><input type="text" id="memQ" placeholder="pergunta"><div style="height:6px"></div><input type="text" id="memA" placeholder="resposta"><div class="row"><button class="btn" id="memAdd" type="button">Adicionar</button></div></div>';
-  wrap.appendChild(search); wrap.appendChild(list); wrap.appendChild(add);
-  openModal('Memória (' + state.memory.length + ')', wrap);
-
-  function draw(filter){
-    list.innerHTML = '';
-    var f = normalize(filter || '');
-    var items = state.memory.slice().reverse();
-    var shown = 0;
-    for (var i = 0; i < items.length && shown < 200; i++){
-      (function(m){
-        if (f && normalize(m.q).indexOf(f) === -1 && normalize(m.a).indexOf(f) === -1) return;
-        shown++;
-        var d = document.createElement('div');
-        d.className = 'mem-item';
-        var head = document.createElement('div');
-        head.className = 'mem-head';
-        var q = document.createElement('div');
-        q.className = 'mem-q';
-        q.textContent = m.q + (m.hits ? '  •  ' + m.hits + ' usos' : '');
-        var del = document.createElement('button');
-        del.className = 'mini'; del.type = 'button'; del.textContent = '🗑'; del.title = 'Apagar';
-        del.addEventListener('click', function(){
-          if (!window.confirm('Apagar essa memória?')) return;
-          state.memory = state.memory.filter(function(x){ return x.id !== m.id; });
-          persist(); updateMemCount(); draw($('#memSearch').value);
-          toast('Memória apagada');
-        });
-        head.appendChild(q); head.appendChild(del);
-        var a = document.createElement('div');
-        a.className = 'mem-a';
-        a.textContent = m.a;
-        d.appendChild(head); d.appendChild(a);
-        list.appendChild(d);
-      })(items[i]);
-    }
-    if (!shown){
-      var p = document.createElement('p');
-      p.style.color = '#9aa0aa';
-      p.textContent = 'Nenhuma memória encontrada.';
-      list.appendChild(p);
-    }
-  }
-  draw('');
-  $('#memSearch').addEventListener('input', function(e){ draw(e.target.value); });
-  $('#memAdd').addEventListener('click', function(){
-    var q = $('#memQ').value, a = $('#memA').value;
-    if (!q.trim() || !a.trim()){ toast('Preencha pergunta e resposta'); return; }
-    addMemory(q, a, 'manual');
-    $('#memQ').value = ''; $('#memA').value = '';
-    $('#modalTitle').textContent = 'Memória (' + state.memory.length + ')';
-    draw($('#memSearch').value);
-    toast('Memória salva!');
-  });
-}
-
-function openBackup(){
-  var wrap = document.createElement('div');
-  wrap.innerHTML =
-    '<div class="field"><label>Exportar</label><div class="row">' +
-    '<button class="btn ghost" id="expAll" type="button">Baixar tudo</button>' +
-    '<button class="btn ghost" id="expMem" type="button">Só memória</button>' +
-    '<button class="btn ghost" id="expChats" type="button">Só chats</button></div></div>' +
-    '<div class="field"><label>Restaurar / perigo</label><div class="row">' +
-    '<button class="btn ghost" id="impBtn" type="button">Importar JSON</button>' +
-    '<button class="btn danger" id="wipeChats" type="button">Apagar chats</button>' +
-    '<button class="btn danger" id="wipeMem" type="button">Apagar memória</button></div>' +
-    '<small>Import aceita o arquivo do "Baixar tudo". Apagar não volta — faça backup antes.</small></div>';
-  openModal('Backup / Restaurar', wrap);
-  $('#expAll').addEventListener('click', function(){ download('toubi-backup.json', {chats: state.chats, memory: state.memory, config: state.config, exportedAt: now()}); });
-  $('#expMem').addEventListener('click', function(){ download('toubi-memoria.json', state.memory); });
-  $('#expChats').addEventListener('click', function(){ download('toubi-chats.json', state.chats); });
-  $('#wipeChats').addEventListener('click', function(){
-    if (!window.confirm('Apagar TODOS os chats?')) return;
-    state.chats = []; state.activeId = null; persist(); renderAll(); closeModal();
-  });
-  $('#wipeMem').addEventListener('click', function(){
-    if (!window.confirm('Apagar TODA a memória?')) return;
-    state.memory = []; persist(); updateMemCount(); closeModal();
-    toast('Memória apagada');
-  });
-  $('#impBtn').addEventListener('click', function(){ $('#fileInput').click(); });
-}
-
-/* ================= VOICE ================= */
-var rec = null, recording = false;
-function toggleMic(){
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR){ toast('Microfone não suportado neste navegador'); return; }
-  var btn = $('#micBtn');
-  if (recording && rec){
-    try { rec.stop(); } catch(e){}
-    return;
-  }
-  rec = new SR();
-  rec.lang = 'pt-BR';
-  rec.interimResults = false;
-  rec.onstart = function(){ recording = true; if (btn) btn.classList.add('rec'); };
-  rec.onend = function(){ recording = false; if (btn) btn.classList.remove('rec'); rec = null; };
-  rec.onerror = function(e){ recording = false; if (btn) btn.classList.remove('rec'); toast('Erro no microfone: ' + (e.error || 'falhou')); };
-  rec.onresult = function(e){
-    var txt = '';
-    for (var i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
-    txt = txt.trim();
-    if (txt){
-      var inp = $('#input');
-      if (inp){ inp.value = (inp.value ? inp.value + ' ' : '') + txt; autoResize(); inp.focus(); }
-    }
-  };
-  try { rec.start(); } catch(e){ toast('Não consegui abrir o microfone'); }
-}
-
-/* ================= MISC UI ================= */
-function closeSidebarMobile(){
-  var sb = $('#sidebar');
-  if (sb && window.innerWidth <= 760) sb.classList.remove('open');
-}
-function autoResize(){
-  var inp = $('#input');
-  if (!inp) return;
-  inp.style.height = 'auto';
-  inp.style.height = Math.min(inp.scrollHeight, 180) + 'px';
-}
-
-/* ================= INIT ================= */
-function init(){
-  seedIfEmpty();
-  renderAll();
-
-  $('#newChatBtn').addEventListener('click', createChat);
-  $('#sendBtn').addEventListener('click', function(){ sendText($('#input').value); });
-
-  var inp = $('#input');
-  inp.addEventListener('keydown', function(e){
-    if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendText(inp.value); }
-  });
-  inp.addEventListener('input', autoResize);
-  autoResize();
-
-  $('#micBtn').addEventListener('click', toggleMic);
-  $('#btnMemory').addEventListener('click', openMemory);
-  $('#btnSettings').addEventListener('click', openSettings);
-  $('#btnBackup').addEventListener('click', openBackup);
-  $('#modalClose').addEventListener('click', closeModal);
-  $('#modal').addEventListener('click', function(e){ if (e.target === this) closeModal(); });
-  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
-
-  var tg = $('#toggleSidebar');
-  if (tg) tg.addEventListener('click', function(){ $('#sidebar').classList.toggle('open'); });
-
-  $('#fileInput').addEventListener('change', function(e){
-    var f = e.target.files && e.target.files[0];
-    if (!f) return;
-    var r = new FileReader();
-    r.onload = function(){
-      try {
-        var data = JSON.parse(r.result);
-        if (data && data.chats && data.memory){
-          state.chats = data.chats; state.memory = data.memory;
-          if (data.config) state.config = Object.assign(state.config, data.config);
-          state.activeId = state.chats[0] ? state.chats[0].id : null;
-        } else if (Array.isArray(data)){
-          state.memory = data;
-        } else { toast('Arquivo inválido'); return; }
-        persist(); renderAll(); closeModal();
-        toast('Backup restaurado!');
-      } catch(err){ toast('Erro ao importar: ' + err.message); }
-      e.target.value = '';
-    };
-    r.readAsText(f);
-  });
-
-  updateSendBtn();
-  if (inp) inp.focus();
-}
-
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-else init();
-
-})();
+  input.addEventListener('keypress', e => { if (e.key === 'Enter') interagir(); });
+  if (epocas > 0) info.innerText = `Épocas treinadas: ${epocas} | Memória Neural Carregada | Neurônios: ${hiddenSize}`;
 </script>
-
 </body>
 </html>
