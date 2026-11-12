@@ -156,6 +156,7 @@ try {
     position:fixed; inset:0; background:#000000b0; display:grid; place-items:center;
     padding:14px; z-index:50;
   }
+  .modalBack[hidden]{display:none !important}
   .modal{
     width:100%; max-width:560px; max-height:88dvh; overflow-y:auto;
     background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px;
@@ -731,7 +732,7 @@ async function ensureLocalModel(){
     try{ if(navigator.gpu){ var ad=await navigator.gpu.requestAdapter(); hasAdapter=!!ad; } }catch(e){}
     var modes = [];
     if(hasAdapter) modes.push({dtype:"q4f16", device:"webgpu", msg:"Baixando modelo (400 a 500 MB, uma vez só). Depois fica salvo no navegador."});
-    modes.push({dtype:"quantized", device:"wasm", msg:"Modo compatível (mais lento, mas funciona em qualquer PC). Baixando modelo, 500 MB uma vez só..."});
+    modes.push({dtype:"int8", device:"wasm", msg:"Modo compatível (mais lento, mas funciona em qualquer PC). Baixando modelo, 500 MB uma vez só..."});
     var lastErr=null;
     for(var mi=0; mi<modes.length; mi++){
       try{
